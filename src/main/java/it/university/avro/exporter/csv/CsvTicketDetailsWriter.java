@@ -34,8 +34,8 @@ public final class CsvTicketDetailsWriter implements TicketDetailsWriter {
                             record.closedDate(),
                             record.openingVersion(),
                             record.openingVersionDate(),
-                            record.affectedVersions(),
                             record.affectedVersionCount(),
+                            record.affectedVersions(),
                             record.fixedVersions(),
                             record.fixedVersionDate()
                     );
@@ -49,15 +49,15 @@ public final class CsvTicketDetailsWriter implements TicketDetailsWriter {
     private CSVFormat buildCsvFormat() {
         return CSVFormat.DEFAULT.builder()
                 .setHeader(
-                        "ticket_id",
-                        "created_date",
-                        "closed_date",
-                        "opening_version",
-                        "opening_version_date",
-                        "affected_versions",
-                        "affected_version_count",
-                        "fixed_versions",
-                        "fixed_version_date"
+                        "ticket id",
+                        "create date",
+                        "closed date",
+                        "opening version",
+                        "opening version date",
+                        "affected version count",
+                        "affected version",
+                        "fixed version",
+                        "fixed version date"
                 )
                 .build();
     }

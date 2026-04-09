@@ -41,18 +41,40 @@ public final class TicketDetailsFactory {
         }
 
         final JiraVersion openingVersion = resolveOpeningVersion(issue.createdDate(), versionCatalog);
+        if (openingVersion == null) {
+            return Optional.empty();
+        }
+
+        final List<JiraVersion> normalizedAffectedVersions =
+                removeFixedVersionFromAffectedVersions(affectedVersions.versions(), fixedVersion);
 
         return Optional.of(new TicketDetailsRecord(
                 issue.ticketId(),
                 formatDate(issue.createdDate()),
                 formatDate(issue.closedDate()),
-                openingVersion == null ? NOT_AVAILABLE : openingVersion.name(),
-                openingVersion == null ? NOT_AVAILABLE : formatDate(openingVersion.releaseDate()),
-                formatAffectedVersions(affectedVersions),
-                affectedVersions.status() == ResolutionStatus.NOT_SPECIFIED ? 0 : affectedVersions.versions().size(),
+                openingVersion.name(),
+                formatDate(openingVersion.releaseDate()),
+                formatAffectedVersions(normalizedAffectedVersions),
+                normalizedAffectedVersions.size(),
                 fixedVersion.name(),
                 formatDate(fixedVersion.releaseDate())
         ));
+    }
+
+    private List<JiraVersion> removeFixedVersionFromAffectedVersions(
+            final List<JiraVersion> affectedVersions,
+            final JiraVersion fixedVersion
+    ) {
+        return affectedVersions.stream()
+                .filter(version -> !isSameVersion(version, fixedVersion))
+                .toList();
+    }
+
+    private boolean isSameVersion(final JiraVersion left, final JiraVersion right) {
+        if (left.id() != null && right.id() != null) {
+            return left.id().equals(right.id());
+        }
+        return Objects.equals(left.name(), right.name());
     }
 
     private ResolvedVersionGroup resolveVersions(
@@ -130,11 +152,11 @@ public final class TicketDetailsFactory {
                 .anyMatch(version -> version.releaseDate().isAfter(fixedVersion.releaseDate()));
     }
 
-    private String formatAffectedVersions(final ResolvedVersionGroup affectedVersions) {
-        if (affectedVersions.status() == ResolutionStatus.NOT_SPECIFIED) {
+    private String formatAffectedVersions(final List<JiraVersion> affectedVersions) {
+        if (affectedVersions.isEmpty()) {
             return NOT_AVAILABLE;
         }
-        return affectedVersions.versions().stream()
+        return affectedVersions.stream()
                 .map(JiraVersion::name)
                 .collect(Collectors.joining(";"));
     }

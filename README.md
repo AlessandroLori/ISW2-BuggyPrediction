@@ -1,2 +1,1 @@
-# ISW2-BuggyPrediction
-BuggyPrediction
+# Buggy Prediction Avro

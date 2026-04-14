@@ -11,13 +11,21 @@ import java.util.Objects;
 public final class InjectedVersionCalculator {
 
     private static final String NOT_AVAILABLE = "n/a";
+    private final AffectedVersionExpander affectedVersionExpander;
 
     private final VersionOrderCatalogFactory versionOrderCatalogFactory;
 
-    public InjectedVersionCalculator(final VersionOrderCatalogFactory versionOrderCatalogFactory) {
+    public InjectedVersionCalculator(
+            final VersionOrderCatalogFactory versionOrderCatalogFactory,
+            final AffectedVersionExpander affectedVersionExpander
+    ) {
         this.versionOrderCatalogFactory = Objects.requireNonNull(
                 versionOrderCatalogFactory,
                 "versionOrderCatalogFactory must not be null"
+        );
+        this.affectedVersionExpander = Objects.requireNonNull(
+                affectedVersionExpander,
+                "affectedVersionExpander must not be null"
         );
     }
 
@@ -33,14 +41,17 @@ public final class InjectedVersionCalculator {
                     ? findOldestAffectedVersion(row, versionCatalog)
                     : estimateInjectedVersion(row, versionCatalog, averageP);
 
+            final AffectedVersionExpander.ExpandedAffectedVersions expandedAffectedVersions =
+                    affectedVersionExpander.expand(row, versionCatalog, injectedVersion);
+
             result.add(new TicketWithInjectedVersionRow(
                     row.ticketId(),
                     row.createdDate(),
                     row.closedDate(),
                     row.openingVersion(),
                     row.openingVersionDate(),
-                    row.affectedVersionCount(),
-                    row.affectedVersion(),
+                    expandedAffectedVersions.affectedVersionCount(),
+                    expandedAffectedVersions.affectedVersions(),
                     row.fixedVersion(),
                     row.fixedVersionDate(),
                     injectedVersion

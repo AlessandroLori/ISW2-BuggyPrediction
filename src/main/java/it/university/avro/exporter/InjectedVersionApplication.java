@@ -6,6 +6,7 @@ import it.university.avro.exporter.iv.csv.TicketDetailsWithIvWriter;
 import it.university.avro.exporter.iv.service.InjectedVersionCalculator;
 import it.university.avro.exporter.iv.service.InjectedVersionEnrichmentService;
 import it.university.avro.exporter.iv.service.VersionOrderCatalogFactory;
+import it.university.avro.exporter.iv.service.AffectedVersionExpander;
 
 public final class InjectedVersionApplication {
 
@@ -22,7 +23,12 @@ public final class InjectedVersionApplication {
         final TicketDetailsCsvReader reader = new TicketDetailsCsvReader(configuration.inputCsvPath());
         final TicketDetailsWithIvWriter writer = new TicketDetailsWithIvWriter(configuration.outputCsvPath());
         final VersionOrderCatalogFactory catalogFactory = new VersionOrderCatalogFactory();
-        final InjectedVersionCalculator calculator = new InjectedVersionCalculator(catalogFactory);
+        final AffectedVersionExpander affectedVersionExpander = new AffectedVersionExpander();
+
+        final InjectedVersionCalculator calculator = new InjectedVersionCalculator(
+                catalogFactory,
+                affectedVersionExpander
+        );
 
         final InjectedVersionEnrichmentService service = new InjectedVersionEnrichmentService(
                 reader,

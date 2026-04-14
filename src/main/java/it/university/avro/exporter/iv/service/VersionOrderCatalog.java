@@ -2,6 +2,8 @@ package it.university.avro.exporter.iv.service;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class VersionOrderCatalog {
 
@@ -37,6 +39,36 @@ public final class VersionOrderCatalog {
                 .mapToInt(Integer::intValue)
                 .max()
                 .orElseThrow(() -> new IllegalStateException("Version catalog is empty"));
+    }
+
+    public List<String> versionsFromInclusiveToExclusive(
+            final String startVersion,
+            final String endExclusiveVersion
+    ) {
+        final int startPosition = positionOf(startVersion);
+        final int endExclusivePosition = positionOf(endExclusiveVersion);
+
+        if (startPosition > endExclusivePosition) {
+            throw new IllegalArgumentException(
+                    "Start version comes after end-exclusive version: "
+                            + startVersion + " > " + endExclusiveVersion
+            );
+        }
+
+        final List<String> versions = new ArrayList<>();
+
+        for (int position = startPosition; position < endExclusivePosition; position++) {
+            versions.add(versionAtPosition(position));
+        }
+
+        // Edge case:
+        // se start == FV, per non ritornare AV vuota dopo aver detto che AV deve esistere,
+        // manteniamo almeno la startVersion.
+        if (versions.isEmpty()) {
+            versions.add(startVersion);
+        }
+
+        return List.copyOf(versions);
     }
 
 }

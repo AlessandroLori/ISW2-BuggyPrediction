@@ -5,6 +5,7 @@ import it.university.avro.exporter.domain.JiraVersion;
 import it.university.avro.exporter.domain.TicketDetailsRecord;
 import it.university.avro.exporter.domain.VersionCatalog;
 import it.university.avro.exporter.domain.VersionReference;
+import it.university.avro.exporter.util.VersionNameComparator;
 
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
@@ -17,6 +18,8 @@ import java.util.stream.Collectors;
 public final class TicketDetailsFactory {
 
     private static final String NOT_AVAILABLE = "n/a";
+
+    private final VersionNameComparator versionNameComparator = new VersionNameComparator();
 
     public Optional<TicketDetailsRecord> create(final JiraIssue issue, final VersionCatalog versionCatalog) {
         Objects.requireNonNull(issue, "issue must not be null");
@@ -36,17 +39,23 @@ public final class TicketDetailsFactory {
             return Optional.empty();
         }
 
-        if (hasAffectedVersionNewerThanFixedVersion(affectedVersions.versions(), fixedVersion)) {
-            return Optional.empty();
-        }
-
         final JiraVersion openingVersion = resolveOpeningVersion(issue.createdDate(), versionCatalog);
         if (openingVersion == null) {
             return Optional.empty();
         }
 
+        // Nuova regola:
+        // se OV < una qualsiasi AV, il ticket va scartato
+        if (hasAffectedVersionNewerThanOpeningVersion(affectedVersions.versions(), openingVersion)) {
+            return Optional.empty();
+        }
+
         final List<JiraVersion> normalizedAffectedVersions =
                 removeFixedVersionFromAffectedVersions(affectedVersions.versions(), fixedVersion);
+
+        if (hasAffectedVersionNewerThanFixedVersion(normalizedAffectedVersions, fixedVersion)) {
+            return Optional.empty();
+        }
 
         return Optional.of(new TicketDetailsRecord(
                 issue.ticketId(),
@@ -59,22 +68,6 @@ public final class TicketDetailsFactory {
                 fixedVersion.name(),
                 formatDate(fixedVersion.releaseDate())
         ));
-    }
-
-    private List<JiraVersion> removeFixedVersionFromAffectedVersions(
-            final List<JiraVersion> affectedVersions,
-            final JiraVersion fixedVersion
-    ) {
-        return affectedVersions.stream()
-                .filter(version -> !isSameVersion(version, fixedVersion))
-                .toList();
-    }
-
-    private boolean isSameVersion(final JiraVersion left, final JiraVersion right) {
-        if (left.id() != null && right.id() != null) {
-            return left.id().equals(right.id());
-        }
-        return Objects.equals(left.name(), right.name());
     }
 
     private ResolvedVersionGroup resolveVersions(
@@ -103,9 +96,11 @@ public final class TicketDetailsFactory {
             return ResolvedVersionGroup.invalid();
         }
 
-        return ResolvedVersionGroup.resolved(resolvedVersions.stream()
-                .sorted(java.util.Comparator.comparing(JiraVersion::releaseDate))
-                .toList());
+        return ResolvedVersionGroup.resolved(
+                resolvedVersions.stream()
+                        .sorted(this::compareVersions)
+                        .toList()
+        );
     }
 
     private JiraVersion resolveFixedVersion(final JiraIssue issue, final VersionCatalog versionCatalog) {
@@ -144,12 +139,62 @@ public final class TicketDetailsFactory {
         return candidate;
     }
 
+    private List<JiraVersion> removeFixedVersionFromAffectedVersions(
+            final List<JiraVersion> affectedVersions,
+            final JiraVersion fixedVersion
+    ) {
+        return affectedVersions.stream()
+                .filter(version -> !isSameVersion(version, fixedVersion))
+                .sorted(this::compareVersions)
+                .toList();
+    }
+
     private boolean hasAffectedVersionNewerThanFixedVersion(
             final List<JiraVersion> affectedVersions,
             final JiraVersion fixedVersion
     ) {
         return affectedVersions.stream()
-                .anyMatch(version -> version.releaseDate().isAfter(fixedVersion.releaseDate()));
+                .map(JiraVersion::name)
+                .anyMatch(affectedVersionName ->
+                        versionNameComparator.compare(affectedVersionName, fixedVersion.name()) > 0
+                );
+    }
+
+    private boolean hasAffectedVersionNewerThanOpeningVersion(
+            final List<JiraVersion> affectedVersions,
+            final JiraVersion openingVersion
+    ) {
+        return affectedVersions.stream()
+                .map(JiraVersion::name)
+                .anyMatch(affectedVersionName ->
+                        versionNameComparator.compare(affectedVersionName, openingVersion.name()) > 0
+                );
+    }
+
+    private boolean isSameVersion(final JiraVersion left, final JiraVersion right) {
+        if (left.id() != null && right.id() != null) {
+            return left.id().equals(right.id());
+        }
+        return Objects.equals(left.name(), right.name());
+    }
+
+    private int compareVersions(final JiraVersion left, final JiraVersion right) {
+        final int byName = versionNameComparator.compare(left.name(), right.name());
+        if (byName != 0) {
+            return byName;
+        }
+
+        if (left.releaseDate() == null && right.releaseDate() == null) {
+            return 0;
+        }
+        if (left.releaseDate() == null) {
+            return -1;
+        }
+        if (right.releaseDate() == null) {
+            return 1;
+        }
+
+        return left.releaseDate().compareTo(right.releaseDate());
     }
 
     private String formatAffectedVersions(final List<JiraVersion> affectedVersions) {

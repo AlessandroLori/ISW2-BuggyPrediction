@@ -15,6 +15,17 @@ public final class TicketDetailsApplication {
         // Utility class
     }
 
+
+    /*
+        Proporton:
+        bene, benissimo, ora dobbiamo applicare il concetto di proportion ovvero per tutti i ticket che abbiamo nel csv
+        che non hanno l'affected version ovvero sono marcati con n/a. Quello che dobbiamo fare è usare un approccio
+        total per stimare la P di proportion sui ticket che hanno già l'affected version valida assumendo come injected
+         verison l'affected version ovvero IV = AV per poi calcolare P ticket per ticket, fare la media e usare il P
+         finale per calcolare le AV dei ticket mancanti. Conosci le formule?
+
+     */
+
     public static void main(final String[] args) {
         final ExporterConfiguration configuration = ExporterConfiguration.defaultConfiguration();
         final JiraClient jiraClient = new ApacheJiraClient(configuration);

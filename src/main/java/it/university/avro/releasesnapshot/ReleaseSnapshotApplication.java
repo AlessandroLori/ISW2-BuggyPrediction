@@ -14,7 +14,7 @@ import it.university.avro.releasesnapshot.service.ReleaseClassInventoryService;
 import it.university.avro.releasesnapshot.service.ReleaseSelectionService;
 import it.university.avro.releasesnapshot.archive.ApacheSourceArchiveDownloader;
 
-public final class ReleaseSnapshotApplication {
+public final class  ReleaseSnapshotApplication {
 
     private ReleaseSnapshotApplication() {
     }

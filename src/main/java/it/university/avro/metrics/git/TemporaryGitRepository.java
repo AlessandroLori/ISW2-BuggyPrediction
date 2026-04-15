@@ -1,0 +1,102 @@
+package it.university.avro.metrics.git;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
+public final class TemporaryGitRepository implements AutoCloseable {
+
+    private final Path repositoryRoot;
+    private final GitCommandExecutor gitCommandExecutor;
+    private final ReleaseTagResolver releaseTagResolver;
+
+    private TemporaryGitRepository(
+            final Path repositoryRoot,
+            final GitCommandExecutor gitCommandExecutor,
+            final ReleaseTagResolver releaseTagResolver
+    ) {
+        this.repositoryRoot = repositoryRoot;
+        this.gitCommandExecutor = gitCommandExecutor;
+        this.releaseTagResolver = releaseTagResolver;
+    }
+
+    public static TemporaryGitRepository cloneRepository(final String repositoryUrl) {
+        final GitCommandExecutor executor = new GitCommandExecutor();
+        final ReleaseTagResolver tagResolver = new ReleaseTagResolver(executor);
+
+        try {
+            final Path tempDirectory = Files.createTempDirectory("avro-metrics-git-");
+            final Path repositoryRoot = tempDirectory.resolve("repo");
+
+            executor.executeOrThrow(
+                    tempDirectory,
+                    List.of("git", "clone", "--quiet", "--no-checkout", repositoryUrl, repositoryRoot.toString())
+            );
+
+            return new TemporaryGitRepository(repositoryRoot, executor, tagResolver);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to create temporary directory for git repository", exception);
+        }
+    }
+
+    public Path repositoryRoot() {
+        return repositoryRoot;
+    }
+
+    public Optional<String> resolveTag(final String version) {
+        return releaseTagResolver.resolveTag(repositoryRoot, version);
+    }
+
+    public Optional<String> readFileAtTag(final String tag, final String classPath) {
+        final GitCommandResult result = gitCommandExecutor.execute(
+                repositoryRoot,
+                List.of("git", "show", tag + ":" + classPath)
+        );
+
+        if (!result.isSuccess()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(result.output());
+    }
+
+    public String gitLogForPathAtTag(final String tag, final String classPath) {
+        final GitCommandResult result = gitCommandExecutor.execute(
+                repositoryRoot,
+                List.of(
+                        "git",
+                        "log",
+                        "--follow",
+                        "--format=@@COMMIT@@%H\u001f%an\u001f%s",
+                        "--numstat",
+                        tag,
+                        "--",
+                        classPath
+                )
+        );
+
+        if (!result.isSuccess()) {
+            return "";
+        }
+
+        return result.output();
+    }
+
+    @Override
+    public void close() {
+        try {
+            Files.walk(repositoryRoot.getParent())
+                    .sorted(Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException ignored) {
+                        }
+                    });
+        } catch (IOException ignored) {
+        }
+    }
+}

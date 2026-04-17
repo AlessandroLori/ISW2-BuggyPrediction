@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public final class TemporaryGitRepository implements AutoCloseable {
 
@@ -63,16 +64,69 @@ public final class TemporaryGitRepository implements AutoCloseable {
         return Optional.of(result.output());
     }
 
-    public String gitLogForPathAtTag(final String tag, final String classPath) {
+    public List<String> listPathsAtTagByFileName(final String tag, final String fileName) {
+        final GitCommandResult result = gitCommandExecutor.execute(
+                repositoryRoot,
+                List.of("git", "ls-tree", "-r", "--name-only", tag)
+        );
+
+        if (!result.isSuccess() || result.output().isBlank()) {
+            return List.of();
+        }
+
+        return result.output()
+                .lines()
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .filter(line -> line.equals(fileName) || line.endsWith("/" + fileName))
+                .collect(Collectors.toList());
+    }
+
+    public String gitLogForPathInReleaseWindow(
+            final String previousTagExclusive,
+            final String currentTagInclusive,
+            final String classPath
+    ) {
+        final String revisionRange = previousTagExclusive == null || previousTagExclusive.isBlank()
+                ? currentTagInclusive
+                : previousTagExclusive + ".." + currentTagInclusive;
+
         final GitCommandResult result = gitCommandExecutor.execute(
                 repositoryRoot,
                 List.of(
                         "git",
                         "log",
                         "--follow",
-                        "--format=@@COMMIT@@%H\u001f%an\u001f%s",
+                        "--date=iso-strict",
+                        "--format=@@COMMIT@@%H\u001f%an\u001f%cI\u001f%s",
                         "--numstat",
-                        tag,
+                        revisionRange,
+                        "--",
+                        classPath
+                )
+        );
+
+        if (!result.isSuccess()) {
+            return "";
+        }
+
+        return result.output();
+    }
+
+    public String gitLogForPathUntilTag(
+            final String currentTagInclusive,
+            final String classPath
+    ) {
+        final GitCommandResult result = gitCommandExecutor.execute(
+                repositoryRoot,
+                List.of(
+                        "git",
+                        "log",
+                        "--follow",
+                        "--date=iso-strict",
+                        "--format=@@COMMIT@@%H\u001f%an\u001f%cI\u001f%s",
+                        "--numstat",
+                        currentTagInclusive,
                         "--",
                         classPath
                 )

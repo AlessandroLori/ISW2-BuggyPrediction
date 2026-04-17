@@ -1,31 +1,34 @@
 package it.university.avro.metrics.csv;
 
+import it.university.avro.metrics.domain.BugTicket;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashSet;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 public final class TicketDetailsBugIdReader {
 
     private final SimpleCsvParser csvParser = new SimpleCsvParser();
 
-    public Set<String> readBugIds(final Path csvPath) {
+    public Map<String, BugTicket> readTickets(final Path csvPath) {
         try {
             final List<String> lines = Files.readAllLines(csvPath);
 
             if (lines.isEmpty()) {
-                return Set.of();
+                return Map.of();
             }
 
             final List<String> header = csvParser.parseLine(lines.get(0));
-            int ticketIdIndex = header.indexOf("ticket id");
-            if (ticketIdIndex < 0) {
-                ticketIdIndex = 0;
-            }
 
-            final Set<String> bugIds = new LinkedHashSet<>();
+            final int ticketIdIndex = findRequiredIndex(header, "ticket id");
+            final int createDateIndex = findRequiredIndex(header, "create date");
+            final int closedDateIndex = findRequiredIndex(header, "closed date");
+
+            final Map<String, BugTicket> tickets = new LinkedHashMap<>();
 
             for (int lineIndex = 1; lineIndex < lines.size(); lineIndex++) {
                 final String rawLine = lines.get(lineIndex);
@@ -34,19 +37,48 @@ public final class TicketDetailsBugIdReader {
                 }
 
                 final List<String> values = csvParser.parseLine(rawLine);
-                if (ticketIdIndex >= values.size()) {
+
+                if (ticketIdIndex >= values.size()
+                        || createDateIndex >= values.size()
+                        || closedDateIndex >= values.size()) {
                     continue;
                 }
 
-                final String ticketId = values.get(ticketIdIndex).trim();
-                if (!ticketId.isBlank()) {
-                    bugIds.add(ticketId.toUpperCase());
+                final String ticketId = values.get(ticketIdIndex).trim().toUpperCase();
+                final String createDateRaw = values.get(createDateIndex).trim();
+                final String closedDateRaw = values.get(closedDateIndex).trim();
+
+                if (ticketId.isBlank() || createDateRaw.isBlank() || closedDateRaw.isBlank()) {
+                    continue;
                 }
+
+                final LocalDate creationDate = parseLocalDate(createDateRaw);
+                final LocalDate closedDate = parseLocalDate(closedDateRaw);
+
+                tickets.put(ticketId, new BugTicket(ticketId, creationDate, closedDate));
             }
 
-            return Set.copyOf(bugIds);
+            return Map.copyOf(tickets);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read TicketDetails csv " + csvPath, exception);
         }
+    }
+
+    private int findRequiredIndex(final List<String> header, final String columnName) {
+        final int index = header.indexOf(columnName);
+        if (index < 0) {
+            throw new IllegalStateException("Missing required column in TicketDetails.csv: " + columnName);
+        }
+        return index;
+    }
+
+    private LocalDate parseLocalDate(final String rawValue) {
+        final String normalized = rawValue.trim();
+
+        if (normalized.length() >= 10) {
+            return LocalDate.parse(normalized.substring(0, 10));
+        }
+
+        return LocalDate.parse(normalized);
     }
 }

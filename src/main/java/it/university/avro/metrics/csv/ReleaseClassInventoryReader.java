@@ -6,7 +6,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class ReleaseClassInventoryReader {
 
@@ -44,12 +46,33 @@ public final class ReleaseClassInventoryReader {
                     continue;
                 }
 
-                records.add(new InventoryRecord(version, classPath));
+                records.add(new InventoryRecord(
+                        version,
+                        classPath.replace('\\', '/')
+                ));
             }
 
-            return List.copyOf(records);
+            return List.copyOf(deduplicate(records));
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read inventory csv " + csvPath, exception);
         }
+    }
+
+    private List<InventoryRecord> deduplicate(final List<InventoryRecord> records) {
+        final Map<String, InventoryRecord> uniqueRecords = new LinkedHashMap<>();
+
+        for (InventoryRecord record : records) {
+            final String key = record.version() + "|" + record.classPath();
+            final InventoryRecord previous = uniqueRecords.putIfAbsent(key, record);
+
+            if (previous != null) {
+                System.out.println(
+                        "[DROP-DUPLICATE-METRICS-INPUT] release=" + record.version()
+                                + " | path=" + record.classPath()
+                );
+            }
+        }
+
+        return new ArrayList<>(uniqueRecords.values());
     }
 }

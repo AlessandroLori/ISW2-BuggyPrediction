@@ -1,5 +1,6 @@
 package it.university.avro.releasesnapshot;
 
+import it.university.avro.releasesnapshot.archive.ApacheSourceArchiveDownloader;
 import it.university.avro.releasesnapshot.config.ReleaseSnapshotConfiguration;
 import it.university.avro.releasesnapshot.csv.ReleaseClassInventoryCsvWriter;
 import it.university.avro.releasesnapshot.csv.TicketDetailsReleaseCatalogReader;
@@ -12,9 +13,8 @@ import it.university.avro.releasesnapshot.scan.ProductionJavaClassFilter;
 import it.university.avro.releasesnapshot.scan.ZipJavaFileScanner;
 import it.university.avro.releasesnapshot.service.ReleaseClassInventoryService;
 import it.university.avro.releasesnapshot.service.ReleaseSelectionService;
-import it.university.avro.releasesnapshot.archive.ApacheSourceArchiveDownloader;
 
-public final class  ReleaseSnapshotApplication {
+public final class ReleaseSnapshotApplication {
 
     private ReleaseSnapshotApplication() {
     }
@@ -60,6 +60,9 @@ public final class  ReleaseSnapshotApplication {
         final ApacheSourceArchiveDownloader apacheSourceArchiveDownloader =
                 new ApacheSourceArchiveDownloader();
 
+        final String repositoryUrl =
+                "https://github.com/" + configuration.owner() + "/" + configuration.repository() + ".git";
+
         final ReleaseClassInventoryService service = new ReleaseClassInventoryService(
                 releaseCatalogReader,
                 releaseSelectionService,
@@ -69,7 +72,8 @@ public final class  ReleaseSnapshotApplication {
                 zipJavaFileScanner,
                 javaDeclaredTypeExtractor,
                 productionJavaClassFilter,
-                csvWriter
+                csvWriter,
+                repositoryUrl
         );
 
         service.generate();

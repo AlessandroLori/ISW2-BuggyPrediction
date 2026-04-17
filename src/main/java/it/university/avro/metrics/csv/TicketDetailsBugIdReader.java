@@ -27,6 +27,8 @@ public final class TicketDetailsBugIdReader {
             final int ticketIdIndex = findRequiredIndex(header, "ticket id");
             final int createDateIndex = findRequiredIndex(header, "create date");
             final int closedDateIndex = findRequiredIndex(header, "closed date");
+            final int injectedVersionIndex = findOptionalIndex(header, "injected version");
+            final int fixedVersionIndex = findOptionalIndex(header, "fixed version");
 
             final Map<String, BugTicket> tickets = new LinkedHashMap<>();
 
@@ -47,6 +49,8 @@ public final class TicketDetailsBugIdReader {
                 final String ticketId = values.get(ticketIdIndex).trim().toUpperCase();
                 final String createDateRaw = values.get(createDateIndex).trim();
                 final String closedDateRaw = values.get(closedDateIndex).trim();
+                final String injectedVersion = readOptionalValue(values, injectedVersionIndex);
+                final String fixedVersion = readOptionalValue(values, fixedVersionIndex);
 
                 if (ticketId.isBlank() || createDateRaw.isBlank() || closedDateRaw.isBlank()) {
                     continue;
@@ -55,7 +59,7 @@ public final class TicketDetailsBugIdReader {
                 final LocalDate creationDate = parseLocalDate(createDateRaw);
                 final LocalDate closedDate = parseLocalDate(closedDateRaw);
 
-                tickets.put(ticketId, new BugTicket(ticketId, creationDate, closedDate));
+                tickets.put(ticketId, new BugTicket(ticketId, creationDate, closedDate, injectedVersion, fixedVersion));
             }
 
             return Map.copyOf(tickets);
@@ -67,9 +71,20 @@ public final class TicketDetailsBugIdReader {
     private int findRequiredIndex(final List<String> header, final String columnName) {
         final int index = header.indexOf(columnName);
         if (index < 0) {
-            throw new IllegalStateException("Missing required column in TicketDetails.csv: " + columnName);
+            throw new IllegalStateException("Missing required column in TicketDetails csv: " + columnName);
         }
         return index;
+    }
+
+    private int findOptionalIndex(final List<String> header, final String columnName) {
+        return header.indexOf(columnName);
+    }
+
+    private String readOptionalValue(final List<String> values, final int index) {
+        if (index < 0 || index >= values.size()) {
+            return "";
+        }
+        return values.get(index).trim();
     }
 
     private LocalDate parseLocalDate(final String rawValue) {

@@ -153,4 +153,26 @@ public final class TemporaryGitRepository implements AutoCloseable {
         } catch (IOException ignored) {
         }
     }
+
+    public String gitLogAllWithChangedPaths() {
+        final GitCommandResult result = gitCommandExecutor.execute(
+                repositoryRoot,
+                List.of(
+                        "git",
+                        "log",
+                        "--all",
+                        "--date=iso-strict",
+                        "--format=@@COMMIT@@%H\u001f%cI\u001f%s",
+                        "--name-only",
+                        "--diff-filter=AMR"
+                )
+        );
+
+        if (!result.isSuccess()) {
+            return "";
+        }
+
+        return result.output();
+    }
+
 }

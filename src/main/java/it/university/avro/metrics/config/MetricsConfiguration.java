@@ -11,7 +11,7 @@ public record MetricsConfiguration(
     public static MetricsConfiguration defaultConfiguration() {
         return new MetricsConfiguration(
                 Path.of("ReleaseClassInventory.csv"),
-                Path.of("TicketDetails.csv"),
+                Path.of("TicketDetailsWithIV.csv"),
                 Path.of("output", "ReleaseMetrics.csv"),
                 "https://github.com/apache/avro.git"
         );

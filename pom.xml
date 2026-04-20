@@ -62,19 +62,25 @@
             <version>3.28.0</version>
         </dependency>
 
-            <!-- già usata per .tar.gz -->
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-compress</artifactId>
-                <version>1.28.0</version>
-            </dependency>
+        <dependency>
+            <groupId>net.sourceforge.pmd</groupId>
+            <artifactId>pmd-java</artifactId>
+            <version>7.17.0</version>
+        </dependency>
 
-            <!-- da forzare esplicitamente per evitare mismatch a runtime -->
-            <dependency>
-                <groupId>commons-io</groupId>
-                <artifactId>commons-io</artifactId>
-                <version>2.20.0</version>
-            </dependency>
+        <!-- già usata per .tar.gz -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.28.0</version>
+        </dependency>
+
+        <!-- da forzare esplicitamente per evitare mismatch a runtime -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.20.0</version>
+        </dependency>
 
     </dependencies>
 

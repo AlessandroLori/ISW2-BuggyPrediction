@@ -18,6 +18,7 @@ import it.university.avro.metrics.snapshot.SourceLookupResult;
 import it.university.avro.metrics.util.ClassPathNormalizer;
 
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -79,6 +80,7 @@ public final class ReleaseMetricsGenerationService {
             String currentTag = null;
             String currentWindowStartTag = null;
             String lastResolvedTag = null;
+            LocalDate currentReleaseDate = null;
 
             for (InventoryRecord inventoryRecord : inventoryRecords) {
                 if (!inventoryRecord.version().equals(currentVersion)) {
@@ -90,6 +92,12 @@ public final class ReleaseMetricsGenerationService {
                     currentTag = repository.resolveTag(resolvedVersion)
                             .orElseThrow(() -> new IllegalStateException(
                                     "Unable to resolve git tag for version " + resolvedVersion
+                            ));
+
+                    String finalCurrentTag = currentTag;
+                    currentReleaseDate = repository.resolveCommitDateForRef(currentTag)
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Unable to resolve commit date for tag " + finalCurrentTag
                             ));
 
                     lastResolvedTag = currentTag;
@@ -116,6 +124,7 @@ public final class ReleaseMetricsGenerationService {
                         repository,
                         currentWindowStartTag,
                         currentTag,
+                        currentReleaseDate,
                         effectivePath,
                         tickets
                 );
@@ -177,8 +186,16 @@ public final class ReleaseMetricsGenerationService {
                         historyResult.metrics().churn(),
                         historyResult.metrics().maxChurn(),
                         historyResult.metrics().avgChurn(),
+                        historyResult.metrics().changeSetSize(),
+                        historyResult.metrics().maxChangeSet(),
+                        historyResult.metrics().avgChangeSet(),
+                        historyResult.metrics().age(),
+                        historyResult.metrics().weightedAge(),
                         staticMetrics.commentLines(),
                         "",
+                        0,
+                        staticMetrics.nestingDepth(),
+                        staticMetrics.decisionPoints(),
                         buggy
                 ));
             }

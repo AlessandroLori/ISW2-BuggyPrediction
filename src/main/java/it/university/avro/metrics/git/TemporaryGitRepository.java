@@ -3,6 +3,7 @@ package it.university.avro.metrics.git;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -137,6 +138,46 @@ public final class TemporaryGitRepository implements AutoCloseable {
         }
 
         return result.output();
+    }
+
+    public Optional<LocalDate> resolveCommitDateForRef(final String ref) {
+        final GitCommandResult result = gitCommandExecutor.execute(
+                repositoryRoot,
+                List.of("git", "log", "-1", "--date=iso-strict", "--format=%cI", ref)
+        );
+
+        if (!result.isSuccess() || result.output().isBlank()) {
+            return Optional.empty();
+        }
+
+        final String rawValue = result.output().trim();
+        final String normalized = rawValue.length() >= 10 ? rawValue.substring(0, 10) : rawValue;
+        return Optional.of(LocalDate.parse(normalized));
+    }
+
+    public int countChangedFilesInCommit(final String commitHash) {
+        final GitCommandResult result = gitCommandExecutor.execute(
+                repositoryRoot,
+                List.of(
+                        "git",
+                        "show",
+                        "--format=",
+                        "--name-only",
+                        "--diff-filter=ACMRTUXB",
+                        commitHash
+                )
+        );
+
+        if (!result.isSuccess() || result.output().isBlank()) {
+            return 0;
+        }
+
+        return (int) result.output()
+                .lines()
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .distinct()
+                .count();
     }
 
     @Override

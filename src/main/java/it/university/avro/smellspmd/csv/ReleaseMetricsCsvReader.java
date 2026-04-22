@@ -35,8 +35,16 @@ public final class ReleaseMetricsCsvReader {
             final int churnIndex = findRequiredIndex(header, "CHURN");
             final int maxChurnIndex = findRequiredIndex(header, "MAX_CHURN");
             final int avgChurnIndex = findRequiredIndex(header, "AVG_CHURN");
+            final int changeSetSizeIndex = findRequiredIndex(header, "CHANGE_SET_SIZE");
+            final int maxChangeSetIndex = findRequiredIndex(header, "MAX_CHANGE_SET");
+            final int avgChangeSetIndex = findRequiredIndex(header, "AVG_CHANGE_SET");
+            final int ageIndex = findRequiredIndex(header, "AGE");
+            final int weightedAgeIndex = findRequiredIndex(header, "WEIGHTED_AGE");
             final int commentLinesIndex = findRequiredIndex(header, "COMMENT_LINES");
             final int nsmellsIndex = findRequiredIndex(header, "nsmells");
+            final int distinctSmellTypesIndex = findRequiredIndex(header, "DISTINCT_SMELL_TYPES");
+            final int nestingDepthIndex = findRequiredIndex(header, "NESTING_DEPTH");
+            final int decisionPointsIndex = findRequiredIndex(header, "DECISION_POINTS");
             final int buggyIndex = findRequiredIndex(header, "BUGGY");
 
             final List<ReleaseMetricsRecord> records = new ArrayList<>();
@@ -65,8 +73,16 @@ public final class ReleaseMetricsCsvReader {
                         parseInteger(values.get(churnIndex)),
                         parseInteger(values.get(maxChurnIndex)),
                         parseDouble(values.get(avgChurnIndex)),
+                        parseInteger(values.get(changeSetSizeIndex)),
+                        parseInteger(values.get(maxChangeSetIndex)),
+                        parseDouble(values.get(avgChangeSetIndex)),
+                        parseInteger(values.get(ageIndex)),
+                        parseDouble(values.get(weightedAgeIndex)),
                         parseInteger(values.get(commentLinesIndex)),
                         values.get(nsmellsIndex).trim(),
+                        parseInteger(values.get(distinctSmellTypesIndex)),
+                        parseInteger(values.get(nestingDepthIndex)),
+                        parseInteger(values.get(decisionPointsIndex)),
                         values.get(buggyIndex).trim()
                 ));
             }

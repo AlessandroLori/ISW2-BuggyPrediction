@@ -10,9 +10,14 @@ public record HistoryMetrics(
         double avgLocAdded,
         int churn,
         int maxChurn,
-        double avgChurn
+        double avgChurn,
+        int changeSetSize,
+        int maxChangeSet,
+        double avgChangeSet,
+        int age,
+        double weightedAge
 ) {
     public static HistoryMetrics empty() {
-        return new HistoryMetrics(0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0.0);
+        return new HistoryMetrics(0, 0, 0, 0, 0, 0, 0.0, 0, 0, 0.0, 0, 0, 0.0, 0, 0.0);
     }
 }

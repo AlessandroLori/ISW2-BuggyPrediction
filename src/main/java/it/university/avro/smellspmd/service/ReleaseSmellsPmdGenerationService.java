@@ -4,6 +4,7 @@ import it.university.avro.metrics.csv.ReleaseMetricsCsvWriter;
 import it.university.avro.metrics.domain.ReleaseMetricsRecord;
 import it.university.avro.metrics.git.TemporaryGitRepository;
 import it.university.avro.smellspmd.csv.ReleaseMetricsCsvReader;
+import it.university.avro.smellspmd.domain.PmdClassSmellMetrics;
 import it.university.avro.smellspmd.domain.ReleaseSourceSnapshot;
 import it.university.avro.smellspmd.domain.ResolvedSourceFile;
 import it.university.avro.smellspmd.pmd.PmdJavaSmellAnalyzer;
@@ -60,14 +61,14 @@ public final class ReleaseSmellsPmdGenerationService {
                         versionEntry.getValue()
                 );
 
-                final Map<String, Integer> smellsByResolvedClassPath = smellAnalyzer.countSmellsByClassPath(
+                final Map<String, PmdClassSmellMetrics> smellMetricsByResolvedClassPath = smellAnalyzer.analyzeByClassPath(
                         releaseSnapshot.sourceByResolvedClassPath(),
                         pmdRulesetPath
                 );
 
                 for (ReleaseMetricsRecord record : versionEntry.getValue()) {
                     final ResolvedSourceFile sourceFile = releaseSnapshot.sourceFor(record.classPath());
-                    final String nsmells = resolveSmellCount(sourceFile, smellsByResolvedClassPath);
+                    final PmdClassSmellMetrics smellMetrics = resolveSmellMetrics(sourceFile, smellMetricsByResolvedClassPath);
 
                     outputRecords.add(new ReleaseMetricsRecord(
                             record.version(),
@@ -83,8 +84,16 @@ public final class ReleaseSmellsPmdGenerationService {
                             record.churn(),
                             record.maxChurn(),
                             record.avgChurn(),
+                            record.changeSetSize(),
+                            record.maxChangeSet(),
+                            record.avgChangeSet(),
+                            record.age(),
+                            record.weightedAge(),
                             record.commentLines(),
-                            nsmells,
+                            Integer.toString(smellMetrics.smellCount()),
+                            smellMetrics.distinctSmellTypes(),
+                            record.nestingDepth(),
+                            record.decisionPoints(),
                             record.buggy()
                     ));
                 }
@@ -103,21 +112,21 @@ public final class ReleaseSmellsPmdGenerationService {
         return grouped;
     }
 
-    private String resolveSmellCount(
+    private PmdClassSmellMetrics resolveSmellMetrics(
             final ResolvedSourceFile sourceFile,
-            final Map<String, Integer> smellsByResolvedClassPath
+            final Map<String, PmdClassSmellMetrics> smellMetricsByResolvedClassPath
     ) {
         if (!sourceFile.found()) {
             System.out.println(
                     "[PMD-SKIP] requested=" + sourceFile.requestedClassPath()
                             + " | reason=source_not_found_at_release_tag"
             );
-            return "0";
+            return PmdClassSmellMetrics.empty();
         }
 
-        final int smellCount = smellsByResolvedClassPath.getOrDefault(
+        final PmdClassSmellMetrics smellMetrics = smellMetricsByResolvedClassPath.getOrDefault(
                 normalizePath(sourceFile.resolvedClassPath()),
-                0
+                PmdClassSmellMetrics.empty()
         );
 
         if (!sourceFile.exactMatch()) {
@@ -127,7 +136,7 @@ public final class ReleaseSmellsPmdGenerationService {
             );
         }
 
-        return Integer.toString(smellCount);
+        return smellMetrics;
     }
 
     private String normalizePath(final String path) {

@@ -24,7 +24,7 @@ public final class ReleaseMetricsCsvWriter {
             }
 
             try (BufferedWriter writer = Files.newBufferedWriter(outputCsvPath)) {
-                writer.write("version,classpath,LOC,LOC_TOUCHED,REVS,FIXES,AUTH,LOC_ADDED,MAX_LOC_ADDED,AVG_LOC_ADDED,CHURN,MAX_CHURN,AVG_CHURN,COMMENT_LINES,nsmells,BUGGY");
+                writer.write("version,classpath,LOC,LOC_TOUCHED,REVS,FIXES,AUTH,LOC_ADDED,MAX_LOC_ADDED,AVG_LOC_ADDED,CHURN,MAX_CHURN,AVG_CHURN,CHANGE_SET_SIZE,MAX_CHANGE_SET,AVG_CHANGE_SET,AGE,WEIGHTED_AGE,COMMENT_LINES,NESTING_DEPTH,DECISION_POINTS,nsmells,DISTINCT_SMELL_TYPES,BUGGY");
                 writer.newLine();
 
                 for (ReleaseMetricsRecord record : records) {
@@ -54,9 +54,25 @@ public final class ReleaseMetricsCsvWriter {
                     writer.write(",");
                     writer.write(record.avgChurnAsCsv());
                     writer.write(",");
+                    writer.write(Integer.toString(record.changeSetSize()));
+                    writer.write(",");
+                    writer.write(Integer.toString(record.maxChangeSet()));
+                    writer.write(",");
+                    writer.write(record.avgChangeSetAsCsv());
+                    writer.write(",");
+                    writer.write(Integer.toString(record.age()));
+                    writer.write(",");
+                    writer.write(record.weightedAgeAsCsv());
+                    writer.write(",");
                     writer.write(Integer.toString(record.commentLines()));
                     writer.write(",");
+                    writer.write(Integer.toString(record.nestingDepth()));
+                    writer.write(",");
+                    writer.write(Integer.toString(record.decisionPoints()));
+                    writer.write(",");
                     writer.write(csv(record.nsmells()));
+                    writer.write(",");
+                    writer.write(Integer.toString(record.distinctSmellTypes()));
                     writer.write(",");
                     writer.write(csv(record.buggy()));
                     writer.newLine();

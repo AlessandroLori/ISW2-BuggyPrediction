@@ -4,6 +4,12 @@ import it.university.avro.metrics.domain.StaticMetrics;
 
 public final class JavaLineMetricExtractor {
 
+    private final JavaStructureMetricExtractor structureMetricExtractor;
+
+    public JavaLineMetricExtractor() {
+        this.structureMetricExtractor = new JavaStructureMetricExtractor();
+    }
+
     public StaticMetrics extract(final String sourceCode) {
         if (sourceCode == null || sourceCode.isBlank()) {
             return StaticMetrics.empty();
@@ -108,6 +114,12 @@ public final class JavaLineMetricExtractor {
             }
         }
 
-        return new StaticMetrics(loc, comments);
+        final StructuralMetrics structuralMetrics = structureMetricExtractor.extract(sourceCode);
+        return new StaticMetrics(
+                loc,
+                comments,
+                structuralMetrics.nestingDepth(),
+                structuralMetrics.decisionPoints()
+        );
     }
 }

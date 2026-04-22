@@ -17,8 +17,16 @@ public record ReleaseMetricsRecord(
         int churn,
         int maxChurn,
         double avgChurn,
+        int changeSetSize,
+        int maxChangeSet,
+        double avgChangeSet,
+        int age,
+        double weightedAge,
         int commentLines,
         String nsmells,
+        int distinctSmellTypes,
+        int nestingDepth,
+        int decisionPoints,
         String buggy
 ) {
     public ReleaseMetricsRecord {
@@ -34,5 +42,13 @@ public record ReleaseMetricsRecord(
 
     public String avgChurnAsCsv() {
         return String.format(Locale.ROOT, "%.6f", avgChurn);
+    }
+
+    public String avgChangeSetAsCsv() {
+        return String.format(Locale.ROOT, "%.6f", avgChangeSet);
+    }
+
+    public String weightedAgeAsCsv() {
+        return String.format(Locale.ROOT, "%.6f", weightedAge);
     }
 }

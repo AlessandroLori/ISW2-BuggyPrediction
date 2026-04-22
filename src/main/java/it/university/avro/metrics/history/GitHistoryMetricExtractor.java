@@ -5,7 +5,9 @@ import it.university.avro.metrics.domain.HistoryMetrics;
 import it.university.avro.metrics.git.TemporaryGitRepository;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -18,10 +20,13 @@ public final class GitHistoryMetricExtractor {
     private static final Pattern BUG_ID_PATTERN = Pattern.compile("AVRO-\\d+");
     private static final int EPSILON_DAYS = 1;
 
+    private final Map<String, Integer> changeSetSizeCache = new HashMap<>();
+
     public HistoryExtractionResult extract(
             final TemporaryGitRepository repository,
             final String previousTagExclusive,
             final String currentTagInclusive,
+            final LocalDate currentReleaseDate,
             final String classPath,
             final Map<String, BugTicket> knownTickets
     ) {
@@ -64,9 +69,43 @@ public final class GitHistoryMetricExtractor {
         final double avgChurn = revs == 0 ? 0.0 : (double) churn / revs;
 
         final Set<String> cumulativeFixes = new LinkedHashSet<>();
+        int changeSetSize = 0;
+        int maxChangeSet = 0;
+        long weightedAgeNumerator = 0L;
+        int weightedAgeDenominator = 0;
+        LocalDate firstTouchDate = null;
+
         for (CommitTouch commitTouch : cumulativeTouches) {
             collectValidBugIds(commitTouch, knownTickets, cumulativeFixes);
+
+            final int commitChangeSetSize = resolveChangeSetSize(repository, commitTouch.commitHash());
+            changeSetSize += commitChangeSetSize;
+            maxChangeSet = Math.max(maxChangeSet, commitChangeSetSize);
+
+            if (commitTouch.commitDate() != null) {
+                if (firstTouchDate == null || commitTouch.commitDate().isBefore(firstTouchDate)) {
+                    firstTouchDate = commitTouch.commitDate();
+                }
+
+                final int touchedLines = commitTouch.addedLines() + commitTouch.deletedLines();
+                if (currentReleaseDate != null && touchedLines > 0) {
+                    final long ageAtRelease = Math.max(
+                            0L,
+                            ChronoUnit.DAYS.between(commitTouch.commitDate(), currentReleaseDate)
+                    );
+                    weightedAgeNumerator += ageAtRelease * touchedLines;
+                    weightedAgeDenominator += touchedLines;
+                }
+            }
         }
+
+        final double avgChangeSet = cumulativeTouches.isEmpty() ? 0.0 : (double) changeSetSize / cumulativeTouches.size();
+        final int age = firstTouchDate == null || currentReleaseDate == null
+                ? 0
+                : (int) Math.max(0L, ChronoUnit.DAYS.between(firstTouchDate, currentReleaseDate));
+        final double weightedAge = weightedAgeDenominator == 0
+                ? (double) age
+                : (double) weightedAgeNumerator / weightedAgeDenominator;
 
         final HistoryMetrics metrics = new HistoryMetrics(
                 revs,
@@ -78,7 +117,12 @@ public final class GitHistoryMetricExtractor {
                 avgLocAdded,
                 churn,
                 maxChurn,
-                avgChurn
+                avgChurn,
+                changeSetSize,
+                maxChangeSet,
+                avgChangeSet,
+                age,
+                weightedAge
         );
 
         return new HistoryExtractionResult(
@@ -97,6 +141,7 @@ public final class GitHistoryMetricExtractor {
 
         final List<CommitTouch> touches = new ArrayList<>();
 
+        String currentCommitHash = null;
         String currentAuthor = null;
         LocalDate currentCommitDate = null;
         String currentSubject = null;
@@ -108,6 +153,7 @@ public final class GitHistoryMetricExtractor {
             if (line.startsWith("@@COMMIT@@")) {
                 if (insideCommit) {
                     touches.add(new CommitTouch(
+                            currentCommitHash,
                             currentAuthor,
                             currentCommitDate,
                             currentSubject,
@@ -123,6 +169,7 @@ public final class GitHistoryMetricExtractor {
                 final String metadata = line.substring("@@COMMIT@@".length());
                 final String[] parts = metadata.split("\u001f", -1);
 
+                currentCommitHash = parts.length > 0 ? parts[0].trim() : "";
                 currentAuthor = parts.length > 1 ? parts[1].trim() : "";
                 currentCommitDate = parts.length > 2 ? parseCommitDate(parts[2].trim()) : null;
                 currentSubject = parts.length > 3 ? parts[3].trim() : "";
@@ -144,6 +191,7 @@ public final class GitHistoryMetricExtractor {
 
         if (insideCommit) {
             touches.add(new CommitTouch(
+                    currentCommitHash,
                     currentAuthor,
                     currentCommitDate,
                     currentSubject,
@@ -206,7 +254,19 @@ public final class GitHistoryMetricExtractor {
         return Integer.parseInt(rawValue.trim());
     }
 
+    private int resolveChangeSetSize(final TemporaryGitRepository repository, final String commitHash) {
+        if (commitHash == null || commitHash.isBlank()) {
+            return 0;
+        }
+
+        return changeSetSizeCache.computeIfAbsent(
+                commitHash,
+                repository::countChangedFilesInCommit
+        );
+    }
+
     private record CommitTouch(
+            String commitHash,
             String author,
             LocalDate commitDate,
             String subject,

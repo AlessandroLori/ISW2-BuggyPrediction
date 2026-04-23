@@ -17,13 +17,13 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
-public final class StratifiedLogNormalizedDatasetService {
+public final class StratifiedStandardizedDatasetService {
 
     private final TabularCsvReader csvReader;
     private final TabularCsvWriter csvWriter;
     private final DatasetPreparationConfiguration configuration;
 
-    public StratifiedLogNormalizedDatasetService(
+    public StratifiedStandardizedDatasetService(
             final TabularCsvReader csvReader,
             final TabularCsvWriter csvWriter,
             final DatasetPreparationConfiguration configuration
@@ -45,20 +45,21 @@ public final class StratifiedLogNormalizedDatasetService {
 
         final SplitResult splitResult = stratifiedSplit(dataset, buggyHeader);
 
-        final Map<String, ColumnScaling> scalingModel = fitScalingModel(splitResult.trainingRows(), numericHeaders);
+        final Map<String, ColumnStandardization> standardizationModel =
+                fitStandardizationModel(splitResult.trainingRows(), numericHeaders);
 
         final TabularDataset trainingDataset = transformDataset(
                 dataset.headers(),
                 splitResult.trainingRows(),
                 numericHeaders,
-                scalingModel
+                standardizationModel
         );
 
         final TabularDataset testingDataset = transformDataset(
                 dataset.headers(),
                 splitResult.testingRows(),
                 numericHeaders,
-                scalingModel
+                standardizationModel
         );
 
         csvWriter.write(trainingDataset, configuration.trainingOutputCsvPath());
@@ -154,53 +155,63 @@ public final class StratifiedLogNormalizedDatasetService {
         return testSize;
     }
 
-    private Map<String, ColumnScaling> fitScalingModel(
+    private Map<String, ColumnStandardization> fitStandardizationModel(
             final List<Map<String, String>> trainingRows,
             final List<String> numericHeaders
     ) {
-        final Map<String, ColumnScaling> scalingModel = new LinkedHashMap<>();
+        final Map<String, ColumnStandardization> model = new LinkedHashMap<>();
 
         for (String header : numericHeaders) {
-            double minValue = Double.POSITIVE_INFINITY;
-            double maxValue = Double.NEGATIVE_INFINITY;
+            double sum = 0.0d;
+            int count = 0;
 
             for (Map<String, String> row : trainingRows) {
-                final double rawValue = parseNumericValue(row.get(header), header);
-                final double transformed = Math.log1p(rawValue);
-
-                minValue = Math.min(minValue, transformed);
-                maxValue = Math.max(maxValue, transformed);
+                final double value = parseNumericValue(row.get(header), header);
+                sum += value;
+                count++;
             }
 
-            if (minValue == Double.POSITIVE_INFINITY || maxValue == Double.NEGATIVE_INFINITY) {
+            if (count == 0) {
                 throw new IllegalStateException("Unable to compute scaling model for column: " + header);
             }
 
-            scalingModel.put(header, new ColumnScaling(minValue, maxValue));
+            final double mean = sum / count;
+
+            double squaredDiffSum = 0.0d;
+            for (Map<String, String> row : trainingRows) {
+                final double value = parseNumericValue(row.get(header), header);
+                final double diff = value - mean;
+                squaredDiffSum += diff * diff;
+            }
+
+            final double variance = squaredDiffSum / count;
+            final double stdDev = Math.sqrt(variance);
+
+            model.put(header, new ColumnStandardization(stdDev));
         }
 
-        return scalingModel;
+        return model;
     }
 
     private TabularDataset transformDataset(
             final List<String> headers,
             final List<Map<String, String>> rows,
             final List<String> numericHeaders,
-            final Map<String, ColumnScaling> scalingModel
+            final Map<String, ColumnStandardization> standardizationModel
     ) {
+        final Set<String> numericHeaderSet = Set.copyOf(numericHeaders);
         final List<Map<String, String>> transformedRows = new ArrayList<>();
 
         for (Map<String, String> row : rows) {
             final Map<String, String> transformedRow = new LinkedHashMap<>();
 
             for (String header : headers) {
-                if (numericHeaders.contains(header)) {
+                if (numericHeaderSet.contains(header)) {
                     final double rawValue = parseNumericValue(row.get(header), header);
-                    final double logScaledValue = Math.log1p(rawValue);
-                    final ColumnScaling scaling = scalingModel.get(header);
-                    final double normalizedValue = scaling.normalize(logScaledValue);
+                    final ColumnStandardization standardization = standardizationModel.get(header);
+                    final double standardizedValue = standardization.standardize(rawValue);
 
-                    transformedRow.put(header, formatDouble(normalizedValue));
+                    transformedRow.put(header, formatDouble(standardizedValue));
                 } else {
                     transformedRow.put(header, row.getOrDefault(header, ""));
                 }
@@ -217,23 +228,14 @@ public final class StratifiedLogNormalizedDatasetService {
             return 0.0d;
         }
 
-        final double parsedValue;
         try {
-            parsedValue = Double.parseDouble(rawValue.trim());
+            return Double.parseDouble(rawValue.trim());
         } catch (NumberFormatException exception) {
             throw new IllegalStateException(
                     "Column '" + header + "' contains a non-numeric value: '" + rawValue + "'",
                     exception
             );
         }
-
-        if (parsedValue < 0.0d) {
-            throw new IllegalStateException(
-                    "Column '" + header + "' contains a negative value not compatible with log1p: " + parsedValue
-            );
-        }
-
-        return parsedValue;
     }
 
     private String formatDouble(final double value) {
@@ -251,7 +253,7 @@ public final class StratifiedLogNormalizedDatasetService {
             final List<String> numericHeaders
     ) {
         System.out.println("Input csv: " + inputPath);
-        System.out.println("Numeric columns transformed with log1p + min-max normalization: " + numericHeaders.size());
+        System.out.println("Numeric columns transformed with standardization (z-score): " + numericHeaders.size());
         System.out.println("Training csv: " + trainPath + " | rows=" + trainingRows.size());
         System.out.println("Testing csv: " + testPath + " | rows=" + testingRows.size());
         System.out.println("Total rows processed: " + totalRows);
@@ -292,15 +294,17 @@ public final class StratifiedLogNormalizedDatasetService {
     ) {
     }
 
-    private record ColumnScaling(
-            double minValue,
-            double maxValue
+    private record ColumnStandardization(
+            double standardDeviation
     ) {
-        private double normalize(final double value) {
-            if (Double.compare(maxValue, minValue) == 0) {
+        private double standardize(final double value) {
+            if (Double.compare(value, 0.0d) == 0) {
                 return 0.0d;
             }
-            return (value - minValue) / (maxValue - minValue);
+            if (Double.compare(standardDeviation, 0.0d) == 0) {
+                return 0.0d;
+            }
+            return value / standardDeviation;
         }
     }
 }

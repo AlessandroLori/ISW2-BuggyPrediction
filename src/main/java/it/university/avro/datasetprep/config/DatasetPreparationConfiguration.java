@@ -7,9 +7,8 @@ import java.util.stream.Collectors;
 
 public record DatasetPreparationConfiguration(
         Path inputCsvPath,
-        Path trainingOutputCsvPath,
-        Path testingOutputCsvPath,
-        double testRatio,
+        Path standardizedOutputCsvPath,
+        Path shuffledOutputCsvPath,
         long randomSeed,
         Set<String> excludedColumns
 ) {
@@ -18,14 +17,11 @@ public record DatasetPreparationConfiguration(
         if (inputCsvPath == null) {
             throw new IllegalArgumentException("inputCsvPath must not be null");
         }
-        if (trainingOutputCsvPath == null) {
-            throw new IllegalArgumentException("trainingOutputCsvPath must not be null");
+        if (standardizedOutputCsvPath == null) {
+            throw new IllegalArgumentException("standardizedOutputCsvPath must not be null");
         }
-        if (testingOutputCsvPath == null) {
-            throw new IllegalArgumentException("testingOutputCsvPath must not be null");
-        }
-        if (testRatio <= 0.0 || testRatio >= 1.0) {
-            throw new IllegalArgumentException("testRatio must be in the open interval (0, 1)");
+        if (shuffledOutputCsvPath == null) {
+            throw new IllegalArgumentException("shuffledOutputCsvPath must not be null");
         }
         if (excludedColumns == null) {
             throw new IllegalArgumentException("excludedColumns must not be null");
@@ -39,9 +35,8 @@ public record DatasetPreparationConfiguration(
     public static DatasetPreparationConfiguration defaultConfiguration() {
         return new DatasetPreparationConfiguration(
                 Path.of("output", "ReleaseMetrics.csv"),
-                Path.of("output", "ReleaseMetrics_train.csv"),
-                Path.of("output", "ReleaseMetrics_test.csv"),
-                0.20d,
+                Path.of("output", "Dataset.csv"),
+                Path.of("output", "Dataset_shuffled.csv"),
                 42L,
                 Set.of("version", "classpath", "buggy")
         );

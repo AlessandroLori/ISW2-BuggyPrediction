@@ -43,59 +43,50 @@ public final class ReleaseSmellsPmdGenerationService {
     ) {
         final List<ReleaseMetricsRecord> metricsRecords = metricsReader.read(inputMetricsCsvPath);
         final Map<String, List<ReleaseMetricsRecord>> recordsByVersion = groupByVersion(metricsRecords);
+        final List<String> orderedVersions = new ArrayList<>(recordsByVersion.keySet());
         final List<ReleaseMetricsRecord> outputRecords = new ArrayList<>(metricsRecords.size());
 
         try (TemporaryGitRepository repository = TemporaryGitRepository.cloneRepository(repositoryUrl)) {
-            for (Map.Entry<String, List<ReleaseMetricsRecord>> versionEntry : recordsByVersion.entrySet()) {
-                final String version = versionEntry.getKey();
-                final String tag = repository.resolveTag(version)
+            for (int versionIndex = 0; versionIndex < orderedVersions.size(); versionIndex++) {
+                final String currentVersion = orderedVersions.get(versionIndex);
+                final List<ReleaseMetricsRecord> currentVersionRecords = recordsByVersion.get(currentVersion);
+
+                if (versionIndex == 0) {
+                    System.out.println(
+                            "Analyzing PMD smells for release " + currentVersion
+                                    + " | previousRelease=NONE | strategy=zero_by_construction"
+                    );
+                    addZeroSmellRecords(currentVersionRecords, outputRecords);
+                    continue;
+                }
+
+                final String previousVersion = orderedVersions.get(versionIndex - 1);
+                final String previousTag = repository.resolveTag(previousVersion)
                         .orElseThrow(() -> new IllegalStateException(
-                                "Unable to resolve git tag for version " + version
+                                "Unable to resolve git tag for previous version " + previousVersion
                         ));
 
-                System.out.println("Analyzing PMD smells for release " + version + " with tag " + tag);
+                System.out.println(
+                        "Analyzing PMD smells for release " + currentVersion
+                                + " using previous release " + previousVersion
+                                + " with tag " + previousTag
+                );
 
-                final ReleaseSourceSnapshot releaseSnapshot = releaseSourceSnapshotBuilder.build(
+                final ReleaseSourceSnapshot previousReleaseSnapshot = releaseSourceSnapshotBuilder.build(
                         repository,
-                        tag,
-                        versionEntry.getValue()
+                        previousTag,
+                        currentVersionRecords
                 );
 
                 final Map<String, PmdClassSmellMetrics> smellMetricsByResolvedClassPath = smellAnalyzer.analyzeByClassPath(
-                        releaseSnapshot.sourceByResolvedClassPath(),
+                        previousReleaseSnapshot.sourceByResolvedClassPath(),
                         pmdRulesetPath
                 );
 
-                for (ReleaseMetricsRecord record : versionEntry.getValue()) {
-                    final ResolvedSourceFile sourceFile = releaseSnapshot.sourceFor(record.classPath());
+                for (ReleaseMetricsRecord record : currentVersionRecords) {
+                    final ResolvedSourceFile sourceFile = previousReleaseSnapshot.sourceFor(record.classPath());
                     final PmdClassSmellMetrics smellMetrics = resolveSmellMetrics(sourceFile, smellMetricsByResolvedClassPath);
-
-                    outputRecords.add(new ReleaseMetricsRecord(
-                            record.version(),
-                            record.classPath(),
-                            record.loc(),
-                            record.locTouched(),
-                            record.revs(),
-                            record.fixes(),
-                            record.auth(),
-                            record.locAdded(),
-                            record.maxLocAdded(),
-                            record.avgLocAdded(),
-                            record.churn(),
-                            record.maxChurn(),
-                            record.avgChurn(),
-                            record.changeSetSize(),
-                            record.maxChangeSet(),
-                            record.avgChangeSet(),
-                            record.age(),
-                            record.weightedAge(),
-                            record.commentLines(),
-                            Integer.toString(smellMetrics.smellCount()),
-                            smellMetrics.distinctSmellTypes(),
-                            record.nestingDepth(),
-                            record.decisionPoints(),
-                            record.buggy()
-                    ));
+                    outputRecords.add(withUpdatedSmells(record, smellMetrics));
                 }
             }
         }
@@ -112,6 +103,47 @@ public final class ReleaseSmellsPmdGenerationService {
         return grouped;
     }
 
+    private void addZeroSmellRecords(
+            final List<ReleaseMetricsRecord> versionRecords,
+            final List<ReleaseMetricsRecord> outputRecords
+    ) {
+        for (ReleaseMetricsRecord record : versionRecords) {
+            outputRecords.add(withUpdatedSmells(record, PmdClassSmellMetrics.empty()));
+        }
+    }
+
+    private ReleaseMetricsRecord withUpdatedSmells(
+            final ReleaseMetricsRecord record,
+            final PmdClassSmellMetrics smellMetrics
+    ) {
+        return new ReleaseMetricsRecord(
+                record.version(),
+                record.classPath(),
+                record.loc(),
+                record.locTouched(),
+                record.revs(),
+                record.fixes(),
+                record.auth(),
+                record.locAdded(),
+                record.maxLocAdded(),
+                record.avgLocAdded(),
+                record.churn(),
+                record.maxChurn(),
+                record.avgChurn(),
+                record.changeSetSize(),
+                record.maxChangeSet(),
+                record.avgChangeSet(),
+                record.age(),
+                record.weightedAge(),
+                record.commentLines(),
+                Integer.toString(smellMetrics.smellCount()),
+                smellMetrics.distinctSmellTypes(),
+                record.nestingDepth(),
+                record.decisionPoints(),
+                record.buggy()
+        );
+    }
+
     private PmdClassSmellMetrics resolveSmellMetrics(
             final ResolvedSourceFile sourceFile,
             final Map<String, PmdClassSmellMetrics> smellMetricsByResolvedClassPath
@@ -119,7 +151,7 @@ public final class ReleaseSmellsPmdGenerationService {
         if (!sourceFile.found()) {
             System.out.println(
                     "[PMD-SKIP] requested=" + sourceFile.requestedClassPath()
-                            + " | reason=source_not_found_at_release_tag"
+                            + " | reason=source_not_found_in_previous_release"
             );
             return PmdClassSmellMetrics.empty();
         }

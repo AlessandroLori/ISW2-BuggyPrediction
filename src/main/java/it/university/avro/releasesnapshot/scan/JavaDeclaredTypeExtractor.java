@@ -20,8 +20,7 @@ public final class JavaDeclaredTypeExtractor {
             Pattern.compile("(?m)^\\s*package\\s+(\\w[\\w.]*)\\s*;");
 
     private static final Pattern TYPE_PATTERN =
-            Pattern.compile("(?m)^\\s*(?:(?:public|protected|private|abstract|static|final|sealed|non-sealed|strictfp)\\s+)*"
-                    + "(class|interface|enum|record)\\s+([A-Za-z_$][\\w$]*)\\b");
+            Pattern.compile("(?m)\\b(class|interface|enum|record)\\s+([A-Za-z_$][\\w$]*)\\b");
 
     private final JavaParser javaParser;
     private final LogicalClassPathResolver logicalClassPathResolver;

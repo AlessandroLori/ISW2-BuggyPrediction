@@ -10,8 +10,6 @@ public final class SemanticVersionComparator implements Comparator<String> {
 
     private static final Pattern LEADING_NUMBER = Pattern.compile("^(\\d+)");
 
-    public SemanticVersionComparator() {
-    }
 
     @Override
     public int compare(final String firstVersion, final String secondVersion) {

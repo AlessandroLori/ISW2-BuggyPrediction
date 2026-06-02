@@ -1,5 +1,7 @@
 package it.university.avro.exporter.iv.service;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.exporter.iv.domain.TicketCsvRow;
 import it.university.avro.exporter.iv.domain.TicketWithInjectedVersionRow;
 
@@ -79,7 +81,7 @@ public final class InjectedVersionCalculator {
             totalP += ticketP;
             ticketsUsedForAverage++;
 
-            System.out.printf(
+            ApplicationLog.infof(
                     Locale.ROOT,
                     "Ticket %s -> IV=%s, P=%.6f, cumulative P=%.6f%n",
                     row.ticketId(),
@@ -95,13 +97,13 @@ public final class InjectedVersionCalculator {
 
         final double averageP = totalP / ticketsUsedForAverage;
 
-        System.out.printf(
+        ApplicationLog.infof(
                 Locale.ROOT,
                 "Tickets used for average P = %d%n",
                 ticketsUsedForAverage
         );
 
-        System.out.printf(
+        ApplicationLog.infof(
                 Locale.ROOT,
                 "Average P = %.6f / %d = %.6f%n",
                 totalP,

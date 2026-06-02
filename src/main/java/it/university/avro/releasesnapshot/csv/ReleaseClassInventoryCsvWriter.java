@@ -21,16 +21,16 @@ public final class ReleaseClassInventoryCsvWriter {
             writer.write("version,classpath,features,nsmells,BUGGY");
             writer.newLine();
 
-            for (JavaClassRecord record : records) {
-                writer.write(csv(record.version()));
+            for (JavaClassRecord javaClassRecord : records) {
+                writer.write(csv(javaClassRecord.version()));
                 writer.write(",");
-                writer.write(csv(record.classPath()));
+                writer.write(csv(javaClassRecord.classPath()));
                 writer.write(",");
-                writer.write(csv(record.features()));
+                writer.write(csv(javaClassRecord.features()));
                 writer.write(",");
-                writer.write(csv(record.nsmells()));
+                writer.write(csv(javaClassRecord.nsmells()));
                 writer.write(",");
-                writer.write(csv(record.buggy()));
+                writer.write(csv(javaClassRecord.buggy()));
                 writer.newLine();
             }
         } catch (IOException exception) {

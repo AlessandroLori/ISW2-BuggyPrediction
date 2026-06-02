@@ -1,4 +1,4 @@
-package it.university.avro.dataset.service;
+package it.university.avro.datasetprep.service;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -44,8 +44,8 @@ public class TrainingCsvCutService {
             ) {
                 printer.printRecord(keptHeaders);
 
-                for (CSVRecord record : parser) {
-                    final List<String> projectedRow = projectRow(record, keptHeaders);
+                for (CSVRecord csvRecord : parser) {
+                    final List<String> projectedRow = projectRow(csvRecord, keptHeaders);
                     printer.printRecord(projectedRow);
                 }
 
@@ -101,10 +101,10 @@ public class TrainingCsvCutService {
         return keptHeaders;
     }
 
-    private List<String> projectRow(final CSVRecord record, final List<String> keptHeaders) {
+    private List<String> projectRow(final CSVRecord csvRecord, final List<String> keptHeaders) {
         final List<String> projectedRow = new ArrayList<>(keptHeaders.size());
         for (String header : keptHeaders) {
-            projectedRow.add(record.get(header));
+            projectedRow.add(csvRecord.get(header));
         }
         return projectedRow;
     }

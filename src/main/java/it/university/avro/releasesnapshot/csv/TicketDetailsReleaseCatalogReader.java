@@ -36,17 +36,17 @@ public final class TicketDetailsReleaseCatalogReader {
                      .build()
                      .parse(reader)) {
 
-            for (CSVRecord record : parser) {
+            for (CSVRecord csvRecord : parser) {
                 addReleaseIfPresent(
                         releasesByVersion,
-                        getValue(record, "opening version", "opening_version"),
-                        getValue(record, "opening version date", "opening_version_date")
+                        getValue(csvRecord, "opening version", "opening_version"),
+                        getValue(csvRecord, "opening version date", "opening_version_date")
                 );
 
                 addReleaseIfPresent(
                         releasesByVersion,
-                        getValue(record, "fixed version", "fixed_versions", "fixed version"),
-                        getValue(record, "fixed version date", "fixed_version_date")
+                        getValue(csvRecord, "fixed version", "fixed_versions", "fixed version"),
+                        getValue(csvRecord, "fixed version date", "fixed_version_date")
                 );
             }
         } catch (IOException exception) {
@@ -75,10 +75,10 @@ public final class TicketDetailsReleaseCatalogReader {
         return value == null || value.isBlank() || NOT_AVAILABLE.equalsIgnoreCase(value.trim());
     }
 
-    private String getValue(final CSVRecord record, final String... headerCandidates) {
+    private String getValue(final CSVRecord csvRecord, final String... headerCandidates) {
         for (String header : headerCandidates) {
-            if (record.isMapped(header)) {
-                return record.get(header);
+            if (csvRecord.isMapped(header)) {
+                return csvRecord.get(header);
             }
         }
         throw new IllegalArgumentException("Missing expected CSV header");

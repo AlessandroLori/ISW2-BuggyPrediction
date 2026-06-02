@@ -10,7 +10,7 @@ public record SonarCodeSmellResult(
         String message
 ) {
     public SonarCodeSmellResult {
-        componentKey = componentKey == null ? Optional.empty() : componentKey;
+        componentKey = Objects.requireNonNull(componentKey, "componentKey must not be null");
         status = Objects.requireNonNull(status, "status must not be null");
         message = message == null ? "" : message;
     }

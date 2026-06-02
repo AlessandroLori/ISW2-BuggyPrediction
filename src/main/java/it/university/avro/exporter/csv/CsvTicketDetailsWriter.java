@@ -27,17 +27,17 @@ public final class CsvTicketDetailsWriter implements TicketDetailsWriter {
             createParentDirectoryIfNeeded();
             try (Writer writer = Files.newBufferedWriter(outputPath);
                  CSVPrinter csvPrinter = new CSVPrinter(writer, buildCsvFormat())) {
-                for (TicketDetailsRecord record : records) {
+                for (TicketDetailsRecord ticketDetailsRecord : records) {
                     csvPrinter.printRecord(
-                            record.ticketId(),
-                            record.createdDate(),
-                            record.closedDate(),
-                            record.openingVersion(),
-                            record.openingVersionDate(),
-                            record.affectedVersionCount(),
-                            record.affectedVersions(),
-                            record.fixedVersions(),
-                            record.fixedVersionDate()
+                            ticketDetailsRecord.ticketId(),
+                            ticketDetailsRecord.createdDate(),
+                            ticketDetailsRecord.closedDate(),
+                            ticketDetailsRecord.openingVersion(),
+                            ticketDetailsRecord.openingVersionDate(),
+                            ticketDetailsRecord.affectedVersionCount(),
+                            ticketDetailsRecord.affectedVersions(),
+                            ticketDetailsRecord.fixedVersions(),
+                            ticketDetailsRecord.fixedVersionDate()
                     );
                 }
             }

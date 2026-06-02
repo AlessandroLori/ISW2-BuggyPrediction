@@ -1,5 +1,7 @@
 package it.university.avro.refactoringdataset.service;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.metrics.domain.HistoryMetrics;
 import it.university.avro.metrics.domain.StaticMetrics;
 import it.university.avro.metrics.snapshot.JavaLineMetricExtractor;
@@ -22,6 +24,8 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 public final class RefactoringDatasetGenerationService {
+
+    private static final String JAVA_EXTENSION = ".java";
 
     private final JavaLineMetricExtractor staticMetricExtractor;
     private final LocalGitHistoryMetricExtractor historyMetricExtractor;
@@ -73,7 +77,7 @@ public final class RefactoringDatasetGenerationService {
                 PmdClassSmellMetrics.empty()
         );
 
-        RefactoringMetricsRecord record = RefactoringMetricsRecord.from(
+        RefactoringMetricsRecord metricsRecord = RefactoringMetricsRecord.from(
                 javaClass.classPath(),
                 staticMetrics,
                 historyMetrics,
@@ -81,14 +85,14 @@ public final class RefactoringDatasetGenerationService {
                 pmdMetrics.smellCount()
         );
 
-        System.out.println(
+        ApplicationLog.info(
                 "Generated row for " + javaClass.classPath()
                         + " | source=" + javaClass.repositoryRelativePath()
                         + " | history=" + javaClass.historyRepositoryRelativePath()
                         + " | PMD=" + pmdMetrics.smellCount()
                         + " | SONAR_SMELLS left blank"
         );
-        return record;
+        return metricsRecord;
     }
 
     private List<LocalJavaClass> loadClasses(RefactoringDatasetConfiguration configuration) {
@@ -114,20 +118,20 @@ public final class RefactoringDatasetGenerationService {
         Path savesDirectory = configuration.refactoringSavesDirectory().toAbsolutePath().normalize();
 
         if (!Files.isDirectory(savesDirectory)) {
-            System.out.println("[REFACTORING-SAVES-WARNING] saves directory not found: " + savesDirectory);
+            ApplicationLog.info("[REFACTORING-SAVES-WARNING] saves directory not found: " + savesDirectory);
             return variants;
         }
 
         for (int variantIndex = 1; variantIndex <= configuration.refactoringVariantCount(); variantIndex++) {
-            String expectedFileName = originalSimpleName + "_C" + variantIndex + ".java";
+            String expectedFileName = originalSimpleName + "_C" + variantIndex + JAVA_EXTENSION;
             Path normalizedVariantPath = savesDirectory.resolve(expectedFileName).toAbsolutePath().normalize();
 
             if (!Files.isRegularFile(normalizedVariantPath)) {
-                System.out.println("[REFACTORING-SKIP] missing variant: " + normalizedVariantPath);
+                ApplicationLog.info("[REFACTORING-SKIP] missing variant: " + normalizedVariantPath);
                 continue;
             }
 
-            System.out.println("[REFACTORING-FOUND] " + originalSimpleName + " C" + variantIndex
+            ApplicationLog.info("[REFACTORING-FOUND] " + originalSimpleName + " C" + variantIndex
                     + " -> " + normalizedVariantPath);
             variants.add(classLoader.loadRefactoringVariant(normalizedVariantPath, originalSourcePath));
         }
@@ -135,12 +139,12 @@ public final class RefactoringDatasetGenerationService {
     }
 
     private void logConfiguration(RefactoringDatasetConfiguration configuration) {
-        System.out.println("[REFACTORING-CONFIG] outputCsv="
+        ApplicationLog.info("[REFACTORING-CONFIG] outputCsv="
                 + configuration.outputCsvPath().toAbsolutePath().normalize());
-        System.out.println("[REFACTORING-CONFIG] variantCount=" + configuration.refactoringVariantCount());
-        System.out.println("[REFACTORING-CONFIG] savesDir="
+        ApplicationLog.info("[REFACTORING-CONFIG] variantCount=" + configuration.refactoringVariantCount());
+        ApplicationLog.info("[REFACTORING-CONFIG] savesDir="
                 + configuration.refactoringSavesDirectory().toAbsolutePath().normalize());
-        System.out.println("[REFACTORING-CONFIG] savesDirExists="
+        ApplicationLog.info("[REFACTORING-CONFIG] savesDirExists="
                 + Files.isDirectory(configuration.refactoringSavesDirectory().toAbsolutePath().normalize()));
         logSavesDirectoryContents(configuration.refactoringSavesDirectory());
     }
@@ -155,22 +159,22 @@ public final class RefactoringDatasetGenerationService {
             List<String> javaFileNames = files
                     .filter(Files::isRegularFile)
                     .map(path -> path.getFileName().toString())
-                    .filter(fileName -> fileName.endsWith(".java"))
+                    .filter(fileName -> fileName.endsWith(JAVA_EXTENSION))
                     .sorted(Comparator.naturalOrder())
                     .toList();
 
-            System.out.println("[REFACTORING-CONFIG] savesJavaFiles=" + javaFileNames);
+            ApplicationLog.info("[REFACTORING-CONFIG] savesJavaFiles=" + javaFileNames);
         } catch (IOException exception) {
-            System.out.println("[REFACTORING-SAVES-WARNING] unable to list saves directory: "
+            ApplicationLog.info("[REFACTORING-SAVES-WARNING] unable to list saves directory: "
                     + normalizedSavesDirectory + " | " + exception.getMessage());
         }
     }
 
     private String stripJavaExtension(String fileName) {
-        if (!fileName.endsWith(".java")) {
+        if (!fileName.endsWith(JAVA_EXTENSION)) {
             return fileName;
         }
-        return fileName.substring(0, fileName.length() - ".java".length());
+        return fileName.substring(0, fileName.length() - JAVA_EXTENSION.length());
     }
 
     private Map<String, PmdClassSmellMetrics> analyzePmdSmells(

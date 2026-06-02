@@ -1,18 +1,22 @@
 package it.university.avro.datasetprep.service;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.datasetprep.config.DatasetPreparationConfiguration;
 import it.university.avro.datasetprep.csv.TabularCsvReader;
 import it.university.avro.datasetprep.csv.TabularCsvWriter;
 import it.university.avro.datasetprep.domain.TabularDataset;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 
 public final class StratifiedStandardizedDatasetService {
@@ -151,9 +155,40 @@ public final class StratifiedStandardizedDatasetService {
     }
 
     private TabularDataset shuffleDataset(final TabularDataset dataset, final long seed) {
-        final List<Map<String, String>> shuffledRows = new ArrayList<>(dataset.rows());
-        Collections.shuffle(shuffledRows, new Random(seed));
+        final List<IndexedRow> indexedRows = new ArrayList<>();
+        for (int index = 0; index < dataset.rows().size(); index++) {
+            indexedRows.add(new IndexedRow(dataset.rows().get(index), deterministicShuffleKey(dataset.rows().get(index), seed, index)));
+        }
+
+        indexedRows.sort(Comparator.comparing(IndexedRow::shuffleKey));
+        final List<Map<String, String>> shuffledRows = indexedRows.stream()
+                .map(IndexedRow::row)
+                .toList();
         return new TabularDataset(dataset.headers(), shuffledRows);
+    }
+
+    private String deterministicShuffleKey(
+            final Map<String, String> row,
+            final long seed,
+            final int originalIndex
+    ) {
+        try {
+            final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(Long.toString(seed).getBytes(StandardCharsets.UTF_8));
+            digest.update(Integer.toString(originalIndex).getBytes(StandardCharsets.UTF_8));
+            digest.update(row.toString().getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(digest.digest());
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available for deterministic dataset shuffling", exception);
+        }
+    }
+
+    private String bytesToHex(final byte[] bytes) {
+        final StringBuilder builder = new StringBuilder(bytes.length * 2);
+        for (byte value : bytes) {
+            builder.append(String.format(Locale.ROOT, "%02x", value));
+        }
+        return builder.toString();
     }
 
     private double parseNumericValue(final String rawValue, final String header) {
@@ -182,11 +217,14 @@ public final class StratifiedStandardizedDatasetService {
             final int totalRows,
             final int transformedNumericColumns
     ) {
-        System.out.println("Input csv: " + inputPath);
-        System.out.println("Numeric columns transformed with x' = x / sigma: " + transformedNumericColumns);
-        System.out.println("Generated dataset csv: " + datasetPath + " | rows=" + totalRows);
-        System.out.println("Generated shuffled dataset csv: " + shuffledDatasetPath + " | rows=" + totalRows);
-        System.out.println("Shuffle seed: " + configuration.randomSeed());
+        ApplicationLog.info("Input csv: " + inputPath);
+        ApplicationLog.info("Numeric columns transformed with x' = x / sigma: " + transformedNumericColumns);
+        ApplicationLog.info("Generated dataset csv: " + datasetPath + " | rows=" + totalRows);
+        ApplicationLog.info("Generated shuffled dataset csv: " + shuffledDatasetPath + " | rows=" + totalRows);
+        ApplicationLog.info("Shuffle seed: " + configuration.randomSeed());
+    }
+
+    private record IndexedRow(Map<String, String> row, String shuffleKey) {
     }
 
     private record ColumnStandardization(double standardDeviation) {

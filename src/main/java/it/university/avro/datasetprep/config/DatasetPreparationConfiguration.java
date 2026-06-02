@@ -13,6 +13,8 @@ public record DatasetPreparationConfiguration(
         Set<String> excludedColumns
 ) {
 
+    private static final String OUTPUT_DIRECTORY = "output";
+
     public DatasetPreparationConfiguration {
         if (inputCsvPath == null) {
             throw new IllegalArgumentException("inputCsvPath must not be null");
@@ -34,9 +36,9 @@ public record DatasetPreparationConfiguration(
 
     public static DatasetPreparationConfiguration defaultConfiguration() {
         return new DatasetPreparationConfiguration(
-                Path.of("output", "ReleaseMetrics.csv"),
-                Path.of("output", "Dataset.csv"),
-                Path.of("output", "Dataset_shuffled.csv"),
+                Path.of(OUTPUT_DIRECTORY, "ReleaseMetrics.csv"),
+                Path.of(OUTPUT_DIRECTORY, "Dataset.csv"),
+                Path.of(OUTPUT_DIRECTORY, "Dataset_shuffled.csv"),
                 42L,
                 Set.of("version", "classpath", "buggy")
         );

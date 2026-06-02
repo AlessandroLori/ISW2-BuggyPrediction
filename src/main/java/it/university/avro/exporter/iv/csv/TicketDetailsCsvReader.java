@@ -33,17 +33,17 @@ public final class TicketDetailsCsvReader {
                      .build()
                      .parse(reader)) {
 
-            for (CSVRecord record : parser) {
+            for (CSVRecord csvRecord : parser) {
                 rows.add(new TicketCsvRow(
-                        getValue(record, "ticket id", "ticket_id"),
-                        getValue(record, "create date", "created_date"),
-                        getValue(record, "closed date", "closed_date"),
-                        getValue(record, "opening version", "opening_version"),
-                        getValue(record, "opening version date", "opening_version_date"),
-                        parseAffectedVersionCount(getValue(record, "affected version count", "affected_version_count")),
-                        getValue(record, "affected version", "affected_versions", "affected version"),
-                        getValue(record, "fixed version", "fixed_versions"),
-                        getValue(record, "fixed version date", "fixed_version_date")
+                        getValue(csvRecord, "ticket id", "ticket_id"),
+                        getValue(csvRecord, "create date", "created_date"),
+                        getValue(csvRecord, "closed date", "closed_date"),
+                        getValue(csvRecord, "opening version", "opening_version"),
+                        getValue(csvRecord, "opening version date", "opening_version_date"),
+                        parseAffectedVersionCount(getValue(csvRecord, "affected version count", "affected_version_count")),
+                        getValue(csvRecord, "affected version", "affected_versions", "affected version"),
+                        getValue(csvRecord, "fixed version", "fixed_versions"),
+                        getValue(csvRecord, "fixed version date", "fixed_version_date")
                 ));
             }
         } catch (IOException exception) {
@@ -53,10 +53,10 @@ public final class TicketDetailsCsvReader {
         return List.copyOf(rows);
     }
 
-    private String getValue(final CSVRecord record, final String... headerCandidates) {
+    private String getValue(final CSVRecord csvRecord, final String... headerCandidates) {
         for (String header : headerCandidates) {
-            if (record.isMapped(header)) {
-                return record.get(header);
+            if (csvRecord.isMapped(header)) {
+                return csvRecord.get(header);
             }
         }
         throw new IllegalArgumentException("Missing expected CSV header. Candidates: " + String.join(", ", headerCandidates));

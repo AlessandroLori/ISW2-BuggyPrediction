@@ -1,5 +1,7 @@
 package it.university.avro.smellspmd.service;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.metrics.csv.ReleaseMetricsCsvWriter;
 import it.university.avro.metrics.domain.ReleaseMetricsRecord;
 import it.university.avro.metrics.git.TemporaryGitRepository;
@@ -52,7 +54,7 @@ public final class ReleaseSmellsPmdGenerationService {
                 final List<ReleaseMetricsRecord> currentVersionRecords = recordsByVersion.get(currentVersion);
 
                 if (versionIndex == 0) {
-                    System.out.println(
+                    ApplicationLog.info(
                             "Analyzing PMD smells for release " + currentVersion
                                     + " | previousRelease=NONE | strategy=zero_by_construction"
                     );
@@ -66,7 +68,7 @@ public final class ReleaseSmellsPmdGenerationService {
                                 "Unable to resolve git tag for previous version " + previousVersion
                         ));
 
-                System.out.println(
+                ApplicationLog.info(
                         "Analyzing PMD smells for release " + currentVersion
                                 + " using previous release " + previousVersion
                                 + " with tag " + previousTag
@@ -83,22 +85,22 @@ public final class ReleaseSmellsPmdGenerationService {
                         pmdRulesetPath
                 );
 
-                for (ReleaseMetricsRecord record : currentVersionRecords) {
-                    final ResolvedSourceFile sourceFile = previousReleaseSnapshot.sourceFor(record.classPath());
+                for (ReleaseMetricsRecord metricsRecord : currentVersionRecords) {
+                    final ResolvedSourceFile sourceFile = previousReleaseSnapshot.sourceFor(metricsRecord.classPath());
                     final PmdClassSmellMetrics smellMetrics = resolveSmellMetrics(sourceFile, smellMetricsByResolvedClassPath);
-                    outputRecords.add(withUpdatedSmells(record, smellMetrics));
+                    outputRecords.add(withUpdatedSmells(metricsRecord, smellMetrics));
                 }
             }
         }
 
         metricsWriter.write(outputRecords);
-        System.out.println("Generated PMD-enriched metrics csv: " + outputMetricsCsvPath + " | rows=" + outputRecords.size());
+        ApplicationLog.info("Generated PMD-enriched metrics csv: " + outputMetricsCsvPath + " | rows=" + outputRecords.size());
     }
 
     private Map<String, List<ReleaseMetricsRecord>> groupByVersion(final List<ReleaseMetricsRecord> metricsRecords) {
         final Map<String, List<ReleaseMetricsRecord>> grouped = new LinkedHashMap<>();
-        for (ReleaseMetricsRecord record : metricsRecords) {
-            grouped.computeIfAbsent(record.version(), ignored -> new ArrayList<>()).add(record);
+        for (ReleaseMetricsRecord metricsRecord : metricsRecords) {
+            grouped.computeIfAbsent(metricsRecord.version(), ignored -> new ArrayList<>()).add(metricsRecord);
         }
         return grouped;
     }
@@ -107,40 +109,40 @@ public final class ReleaseSmellsPmdGenerationService {
             final List<ReleaseMetricsRecord> versionRecords,
             final List<ReleaseMetricsRecord> outputRecords
     ) {
-        for (ReleaseMetricsRecord record : versionRecords) {
-            outputRecords.add(withUpdatedSmells(record, PmdClassSmellMetrics.empty()));
+        for (ReleaseMetricsRecord metricsRecord : versionRecords) {
+            outputRecords.add(withUpdatedSmells(metricsRecord, PmdClassSmellMetrics.empty()));
         }
     }
 
     private ReleaseMetricsRecord withUpdatedSmells(
-            final ReleaseMetricsRecord record,
+            final ReleaseMetricsRecord metricsRecord,
             final PmdClassSmellMetrics smellMetrics
     ) {
         return new ReleaseMetricsRecord(
-                record.version(),
-                record.classPath(),
-                record.loc(),
-                record.locTouched(),
-                record.revs(),
-                record.fixes(),
-                record.auth(),
-                record.locAdded(),
-                record.maxLocAdded(),
-                record.avgLocAdded(),
-                record.churn(),
-                record.maxChurn(),
-                record.avgChurn(),
-                record.changeSetSize(),
-                record.maxChangeSet(),
-                record.avgChangeSet(),
-                record.age(),
-                record.weightedAge(),
-                record.commentLines(),
+                metricsRecord.version(),
+                metricsRecord.classPath(),
+                metricsRecord.loc(),
+                metricsRecord.locTouched(),
+                metricsRecord.revs(),
+                metricsRecord.fixes(),
+                metricsRecord.auth(),
+                metricsRecord.locAdded(),
+                metricsRecord.maxLocAdded(),
+                metricsRecord.avgLocAdded(),
+                metricsRecord.churn(),
+                metricsRecord.maxChurn(),
+                metricsRecord.avgChurn(),
+                metricsRecord.changeSetSize(),
+                metricsRecord.maxChangeSet(),
+                metricsRecord.avgChangeSet(),
+                metricsRecord.age(),
+                metricsRecord.weightedAge(),
+                metricsRecord.commentLines(),
                 Integer.toString(smellMetrics.smellCount()),
                 smellMetrics.distinctSmellTypes(),
-                record.nestingDepth(),
-                record.decisionPoints(),
-                record.buggy()
+                metricsRecord.nestingDepth(),
+                metricsRecord.decisionPoints(),
+                metricsRecord.buggy()
         );
     }
 
@@ -149,7 +151,7 @@ public final class ReleaseSmellsPmdGenerationService {
             final Map<String, PmdClassSmellMetrics> smellMetricsByResolvedClassPath
     ) {
         if (!sourceFile.found()) {
-            System.out.println(
+            ApplicationLog.info(
                     "[PMD-SKIP] requested=" + sourceFile.requestedClassPath()
                             + " | reason=source_not_found_in_previous_release"
             );
@@ -162,7 +164,7 @@ public final class ReleaseSmellsPmdGenerationService {
         );
 
         if (!sourceFile.exactMatch()) {
-            System.out.println(
+            ApplicationLog.info(
                     "[PMD-PATH-RECOVERED] requested=" + sourceFile.requestedClassPath()
                             + " | resolved=" + sourceFile.resolvedClassPath()
             );

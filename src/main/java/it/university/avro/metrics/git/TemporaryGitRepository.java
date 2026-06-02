@@ -1,5 +1,7 @@
 package it.university.avro.metrics.git;
 
+import it.university.avro.common.TemporaryPaths;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,9 +9,11 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public final class TemporaryGitRepository implements AutoCloseable {
+
+    private static final String GIT_NAME_ONLY_OPTION = "--name-only";
+    private static final String GIT_ISO_STRICT_DATE_OPTION = "--date=iso-strict";
 
     private final Path repositoryRoot;
     private final GitCommandExecutor gitCommandExecutor;
@@ -30,7 +34,7 @@ public final class TemporaryGitRepository implements AutoCloseable {
         final ReleaseTagResolver tagResolver = new ReleaseTagResolver(executor);
 
         try {
-            final Path tempDirectory = Files.createTempDirectory("avro-metrics-git-");
+            final Path tempDirectory = TemporaryPaths.createDirectory("avro-metrics-git-");
             final Path repositoryRoot = tempDirectory.resolve("repo");
 
             executor.executeOrThrow(
@@ -68,7 +72,7 @@ public final class TemporaryGitRepository implements AutoCloseable {
     public List<String> listPathsAtTagByFileName(final String tag, final String fileName) {
         final GitCommandResult result = gitCommandExecutor.execute(
                 repositoryRoot,
-                List.of("git", "ls-tree", "-r", "--name-only", tag)
+                List.of("git", "ls-tree", "-r", GIT_NAME_ONLY_OPTION, tag)
         );
 
         if (!result.isSuccess() || result.output().isBlank()) {
@@ -80,7 +84,7 @@ public final class TemporaryGitRepository implements AutoCloseable {
                 .map(String::trim)
                 .filter(line -> !line.isBlank())
                 .filter(line -> line.equals(fileName) || line.endsWith("/" + fileName))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public String gitLogForPathInReleaseWindow(
@@ -98,7 +102,7 @@ public final class TemporaryGitRepository implements AutoCloseable {
                         "git",
                         "log",
                         "--follow",
-                        "--date=iso-strict",
+                        GIT_ISO_STRICT_DATE_OPTION,
                         "--format=@@COMMIT@@%H\u001f%an\u001f%cI\u001f%s",
                         "--numstat",
                         revisionRange,
@@ -124,7 +128,7 @@ public final class TemporaryGitRepository implements AutoCloseable {
                         "git",
                         "log",
                         "--follow",
-                        "--date=iso-strict",
+                        GIT_ISO_STRICT_DATE_OPTION,
                         "--format=@@COMMIT@@%H\u001f%an\u001f%cI\u001f%s",
                         "--numstat",
                         currentTagInclusive,
@@ -143,7 +147,7 @@ public final class TemporaryGitRepository implements AutoCloseable {
     public Optional<LocalDate> resolveCommitDateForRef(final String ref) {
         final GitCommandResult result = gitCommandExecutor.execute(
                 repositoryRoot,
-                List.of("git", "log", "-1", "--date=iso-strict", "--format=%cI", ref)
+                List.of("git", "log", "-1", GIT_ISO_STRICT_DATE_OPTION, "--format=%cI", ref)
         );
 
         if (!result.isSuccess() || result.output().isBlank()) {
@@ -162,7 +166,7 @@ public final class TemporaryGitRepository implements AutoCloseable {
                         "git",
                         "show",
                         "--format=",
-                        "--name-only",
+                        GIT_NAME_ONLY_OPTION,
                         "--diff-filter=ACMRTUXB",
                         commitHash
                 )
@@ -189,9 +193,11 @@ public final class TemporaryGitRepository implements AutoCloseable {
                         try {
                             Files.deleteIfExists(path);
                         } catch (IOException ignored) {
+                            // Best-effort cleanup: a remaining temporary file must not hide the original workflow result.
                         }
                     });
         } catch (IOException ignored) {
+            // Best-effort cleanup: a remaining temporary directory must not hide the original workflow result.
         }
     }
 
@@ -202,9 +208,9 @@ public final class TemporaryGitRepository implements AutoCloseable {
                         "git",
                         "log",
                         "--all",
-                        "--date=iso-strict",
+                        GIT_ISO_STRICT_DATE_OPTION,
                         "--format=@@COMMIT@@%H\u001f%cI\u001f%s",
-                        "--name-only",
+                        GIT_NAME_ONLY_OPTION,
                         "--diff-filter=AMR"
                 )
         );

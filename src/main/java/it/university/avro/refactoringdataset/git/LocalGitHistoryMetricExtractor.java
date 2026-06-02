@@ -1,5 +1,7 @@
 package it.university.avro.refactoringdataset.git;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.metrics.domain.HistoryMetrics;
 import it.university.avro.metrics.git.GitCommandResult;
 
@@ -127,7 +129,7 @@ public final class LocalGitHistoryMetricExtractor {
         );
 
         if (!result.isSuccess()) {
-            System.out.println("[GIT-HISTORY-WARNING] path=" + repositoryRelativePath + " | reason=" + result.output());
+            ApplicationLog.info("[GIT-HISTORY-WARNING] path=" + repositoryRelativePath + " | reason=" + result.output());
             return "";
         }
 

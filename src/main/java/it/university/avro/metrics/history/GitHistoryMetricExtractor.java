@@ -173,20 +173,13 @@ public final class GitHistoryMetricExtractor {
                 currentAuthor = parts.length > 1 ? parts[1].trim() : "";
                 currentCommitDate = parts.length > 2 ? parseCommitDate(parts[2].trim()) : null;
                 currentSubject = parts.length > 3 ? parts[3].trim() : "";
-                continue;
+            } else if (insideCommit) {
+                final String[] numstat = line.split("\t");
+                if (numstat.length >= 3) {
+                    currentAdded += parseNumstatValue(numstat[0]);
+                    currentDeleted += parseNumstatValue(numstat[1]);
+                }
             }
-
-            if (!insideCommit) {
-                continue;
-            }
-
-            final String[] numstat = line.split("\t");
-            if (numstat.length < 3) {
-                continue;
-            }
-
-            currentAdded += parseNumstatValue(numstat[0]);
-            currentDeleted += parseNumstatValue(numstat[1]);
         }
 
         if (insideCommit) {
@@ -217,11 +210,7 @@ public final class GitHistoryMetricExtractor {
             final String bugId = matcher.group();
             final BugTicket ticket = knownTickets.get(bugId);
 
-            if (ticket == null) {
-                continue;
-            }
-
-            if (isCommitDateConsistent(commitTouch.commitDate(), ticket)) {
+            if (ticket != null && isCommitDateConsistent(commitTouch.commitDate(), ticket)) {
                 collector.add(bugId);
             }
         }

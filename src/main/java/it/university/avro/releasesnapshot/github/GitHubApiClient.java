@@ -1,5 +1,7 @@
 package it.university.avro.releasesnapshot.github;
 
+import it.university.avro.common.TemporaryPaths;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -19,10 +21,16 @@ import java.util.Optional;
 public final class GitHubApiClient {
 
     private static final String API_BASE = "https://api.github.com";
+    private static final String URL_PATH_SEPARATOR = "/";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final int MAX_ATTEMPTS = 3;
     private static final long RETRY_SLEEP_MILLIS = 1500L;
+    private static final String RATE_LIMIT_MESSAGE = """
+            GitHub API rate limit exceeded.
+            Add a GitHub token in the GITHUB_TOKEN environment variable in your IntelliJ Run Configuration.
+            Example token type: fine-grained personal access token with read-only access to public repositories.
+            """;
 
     private final String owner;
     private final String repository;
@@ -73,9 +81,7 @@ public final class GitHubApiClient {
                 }
 
                 if (statusCode == 403 && isRateLimitExceeded(body)) {
-                    throw new GitHubRateLimitException(
-                            buildRateLimitMessage()
-                    );
+                    throw new GitHubRateLimitException(RATE_LIMIT_MESSAGE);
                 }
 
                 if (isRetryableStatus(statusCode)) {
@@ -125,7 +131,7 @@ public final class GitHubApiClient {
 
         try {
             final JsonNode commitResponse = getJson(
-                    "/repos/" + owner + "/" + repository + "/commits/" + encodedRef
+                    apiPath("repos", owner, repository, "commits", encodedRef)
             );
             final String sha = commitResponse.path("sha").asText();
 
@@ -141,13 +147,13 @@ public final class GitHubApiClient {
 
     public Path downloadZipball(final String ref) {
         final String encodedRef = URLEncoder.encode(ref, StandardCharsets.UTF_8);
-        final String apiPath = "/repos/" + owner + "/" + repository + "/zipball/" + encodedRef;
+        final String apiPath = apiPath("repos", owner, repository, "zipball", encodedRef);
 
         RuntimeException lastFailure = null;
 
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
-                final Path tempFile = Files.createTempFile("github-archive-", ".zip");
+                final Path tempFile = TemporaryPaths.createFile("github-archive-", ".zip");
                 final HttpRequest request = baseRequest(apiPath).GET().build();
 
                 final HttpResponse<Path> response = httpClient.send(
@@ -159,7 +165,7 @@ public final class GitHubApiClient {
 
                 if (statusCode == 403) {
                     Files.deleteIfExists(tempFile);
-                    throw new GitHubRateLimitException(buildRateLimitMessage());
+                    throw new GitHubRateLimitException(RATE_LIMIT_MESSAGE);
                 }
 
                 if (isRetryableStatus(statusCode)) {
@@ -213,12 +219,8 @@ public final class GitHubApiClient {
                 && responseBody.toLowerCase().contains("rate limit exceeded");
     }
 
-    private String buildRateLimitMessage() {
-        return """
-                GitHub API rate limit exceeded.
-                Add a GitHub token in the GITHUB_TOKEN environment variable in your IntelliJ Run Configuration.
-                Example token type: fine-grained personal access token with read-only access to public repositories.
-                """;
+    private String apiPath(final String... segments) {
+        return URL_PATH_SEPARATOR + String.join(URL_PATH_SEPARATOR, segments);
     }
 
     private void sleepBeforeRetry(final int attempt) {

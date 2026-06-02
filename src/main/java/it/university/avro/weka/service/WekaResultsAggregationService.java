@@ -1,5 +1,7 @@
 package it.university.avro.weka.service;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.weka.csv.FinalWekaResultsCsvWriter;
 import it.university.avro.weka.csv.WekaExperimentObservationCsvReader;
 import it.university.avro.weka.domain.FinalWekaResultRecord;
@@ -39,7 +41,7 @@ public final class WekaResultsAggregationService {
 
         csvWriter.write(finalRecords);
 
-        System.out.println(
+        ApplicationLog.info(
                 "Generated final Weka results csv: "
                         + csvWriter.outputCsvPath()
                         + " | rows="
@@ -119,7 +121,7 @@ public final class WekaResultsAggregationService {
         }
 
         if (schemeAverages.size() > 1) {
-            System.out.println(
+            ApplicationLog.info(
                     "Collapsed " + schemeAverages.size()
                             + " Weka scheme variants into one visible configuration: "
                             + configurationKey
@@ -293,13 +295,13 @@ public final class WekaResultsAggregationService {
 
     private Comparator<FinalWekaResultRecord> finalRecordComparator() {
         return Comparator
-                .comparingInt((FinalWekaResultRecord record) -> datasetOrder(record.dataset()))
+                .comparingInt((FinalWekaResultRecord resultRecord) -> datasetOrder(resultRecord.dataset()))
                 .thenComparing(FinalWekaResultRecord::dataset)
-                .thenComparingInt(record -> classifierOrder(record.classifier()))
+                .thenComparingInt(resultRecord -> classifierOrder(resultRecord.classifier()))
                 .thenComparing(FinalWekaResultRecord::classifier)
-                .thenComparingInt(record -> fsOrder(record.fs()))
+                .thenComparingInt(resultRecord -> fsOrder(resultRecord.fs()))
                 .thenComparing(FinalWekaResultRecord::fs)
-                .thenComparingInt(record -> balancingOrder(record.balancing()))
+                .thenComparingInt(resultRecord -> balancingOrder(resultRecord.balancing()))
                 .thenComparing(FinalWekaResultRecord::balancing);
     }
 

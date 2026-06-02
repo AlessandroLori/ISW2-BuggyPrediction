@@ -1,5 +1,7 @@
 package it.university.avro.metrics.service;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.exporter.iv.service.VersionNameComparator;
 import it.university.avro.metrics.csv.ReleaseClassInventoryReader;
 import it.university.avro.metrics.csv.ReleaseMetricsCsvWriter;
@@ -27,6 +29,8 @@ import java.util.Map;
 import java.util.Set;
 
 public final class ReleaseMetricsGenerationService {
+
+    private static final String PATH_LABEL = " | path=";
 
     private final ReleaseClassInventoryReader inventoryReader;
     private final TicketDetailsBugIdReader bugIdReader;
@@ -102,7 +106,7 @@ public final class ReleaseMetricsGenerationService {
 
                     lastResolvedTag = currentTag;
 
-                    System.out.println(
+                    ApplicationLog.info(
                             "Processing release " + currentVersion
                                     + " with tag " + currentTag
                                     + " | previousTag=" + currentWindowStartTag
@@ -130,13 +134,13 @@ public final class ReleaseMetricsGenerationService {
                 );
 
                 if (!sourceLookup.found()) {
-                    System.out.println(
+                    ApplicationLog.info(
                             "[STATIC-SUSPECT] release=" + inventoryRecord.version()
-                                    + " | path=" + inventoryRecord.classPath()
+                                    + PATH_LABEL + inventoryRecord.classPath()
                                     + " | reason=source_not_found_at_release_tag"
                     );
                 } else if (!sourceLookup.exactMatch()) {
-                    System.out.println(
+                    ApplicationLog.info(
                             "[PATH-RECOVERED] release=" + inventoryRecord.version()
                                     + " | requested=" + inventoryRecord.classPath()
                                     + " | resolved=" + sourceLookup.resolvedPath()
@@ -150,15 +154,15 @@ public final class ReleaseMetricsGenerationService {
                         && historyResult.metrics().churn() == 0) {
 
                     if (!historyResult.hasWindowCommits() && historyResult.hasCumulativeCommits()) {
-                        System.out.println(
+                        ApplicationLog.info(
                                 "[ZERO-OK] release=" + inventoryRecord.version()
-                                        + " | path=" + inventoryRecord.classPath()
+                                        + PATH_LABEL + inventoryRecord.classPath()
                                         + " | reason=no_commits_in_release_window"
                         );
                     } else if (!historyResult.hasWindowCommits() && !historyResult.hasCumulativeCommits() && sourceLookup.found()) {
-                        System.out.println(
+                        ApplicationLog.info(
                                 "[ZERO-SUSPECT] release=" + inventoryRecord.version()
-                                        + " | path=" + inventoryRecord.classPath()
+                                        + PATH_LABEL + inventoryRecord.classPath()
                                         + " | resolved=" + effectivePath
                                         + " | reason=file_exists_but_no_history_linked"
                         );
@@ -202,7 +206,7 @@ public final class ReleaseMetricsGenerationService {
         }
 
         csvWriter.write(outputRecords);
-        System.out.println("Generated metrics csv: " + outputCsvPath + " | rows=" + outputRecords.size());
+        ApplicationLog.info("Generated metrics csv: " + outputCsvPath + " | rows=" + outputRecords.size());
     }
 
     private Map<String, Set<String>> buildBuggyClassesByVersion(
@@ -266,7 +270,7 @@ public final class ReleaseMetricsGenerationService {
             totalBuggyVersionClassBindings += classes.size();
         }
 
-        System.out.println(
+        ApplicationLog.info(
                 "[BUGGY-LABELS] ticketsLoaded=" + tickets.size()
                         + " | ticketsWithMatchedCommits=" + ticketsWithResolvedClasses
                         + " | versionsWithBuggyClasses=" + buggyClassesByVersion.size()

@@ -1,5 +1,7 @@
 package it.university.avro.correlation;
 
+import it.university.avro.common.ApplicationLog;
+
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
@@ -23,10 +25,12 @@ import java.util.Set;
 
 public final class CorrelationAnalysisApplication {
 
-    private static final Path DEFAULT_DATASET_A = Path.of("output", "Dataset.csv");
-    private static final Path DEFAULT_DATASET_B = Path.of("output", "DatasetB.csv");
-    private static final Path DEFAULT_DATASET_C = Path.of("output", "DatasetC.csv");
-    private static final Path DEFAULT_OUTPUT = Path.of("output", "CorrelationAnalysis.csv");
+    private static final String OUTPUT_DIRECTORY = "output";
+
+    private static final Path DEFAULT_DATASET_A = Path.of(OUTPUT_DIRECTORY, "Dataset.csv");
+    private static final Path DEFAULT_DATASET_B = Path.of(OUTPUT_DIRECTORY, "DatasetB.csv");
+    private static final Path DEFAULT_DATASET_C = Path.of(OUTPUT_DIRECTORY, "DatasetC.csv");
+    private static final Path DEFAULT_OUTPUT = Path.of(OUTPUT_DIRECTORY, "CorrelationAnalysis.csv");
 
     private static final String BUGGY_COLUMN = "BUGGY";
     private static final String NSMELLS_COLUMN = "nsmells";
@@ -55,7 +59,7 @@ public final class CorrelationAnalysisApplication {
             "COMMENT_LINES",
             "NESTING_DEPTH",
             "DECISION_POINTS",
-            "nsmells",
+            NSMELLS_COLUMN,
             "DISTINCT_SMELL_TYPES"
     );
 
@@ -81,10 +85,10 @@ public final class CorrelationAnalysisApplication {
         List<String> metrics = resolveMetricColumns(datasetA.headers());
         writeCorrelationReport(datasetA, datasetB, datasetC, metrics, outputPath);
 
-        System.out.println("Generated correlation analysis csv: " + outputPath);
-        System.out.println("Dataset rows: " + datasetA.size());
-        System.out.println("DatasetB rows: " + datasetB.size());
-        System.out.println("DatasetC rows: " + datasetC.size());
+        ApplicationLog.info("Generated correlation analysis csv: " + outputPath);
+        ApplicationLog.info("Dataset rows: " + datasetA.size());
+        ApplicationLog.info("DatasetB rows: " + datasetB.size());
+        ApplicationLog.info("DatasetC rows: " + datasetC.size());
     }
 
     private static Dataset readDataset(String name, Path path) throws IOException {
@@ -101,10 +105,10 @@ public final class CorrelationAnalysisApplication {
             List<String> headers = parser.getHeaderNames();
             List<Map<String, String>> rows = new ArrayList<>();
 
-            for (CSVRecord record : parser) {
+            for (CSVRecord csvRecord : parser) {
                 Map<String, String> row = new HashMap<>();
                 for (String header : headers) {
-                    row.put(header, record.get(header));
+                    row.put(header, csvRecord.get(header));
                 }
                 rows.add(row);
             }
@@ -332,16 +336,16 @@ public final class CorrelationAnalysisApplication {
         return 1.0 - betaFactor * betaContinuedFraction(b, a, 1.0 - x) / b;
     }
 
-    private static double betaContinuedFraction(double a, double b, double x) {
+    private static double betaContinuedFraction(double leftShape, double rightShape, double argument) {
         final int maxIterations = 10_000;
         final double epsilon = 3.0E-14;
         final double fpMin = 1.0E-300;
 
-        double qab = a + b;
-        double qap = a + 1.0;
-        double qam = a - 1.0;
+        double qab = leftShape + rightShape;
+        double qap = leftShape + 1.0;
+        double qam = leftShape - 1.0;
         double c = 1.0;
-        double d = 1.0 - qab * x / qap;
+        double d = 1.0 - qab * argument / qap;
 
         if (Math.abs(d) < fpMin) {
             d = fpMin;
@@ -353,7 +357,7 @@ public final class CorrelationAnalysisApplication {
         for (int iteration = 1; iteration <= maxIterations; iteration++) {
             int m2 = 2 * iteration;
 
-            double aa = iteration * (b - iteration) * x / ((qam + m2) * (a + m2));
+            double aa = iteration * (rightShape - iteration) * argument / ((qam + m2) * (leftShape + m2));
             d = 1.0 + aa * d;
             if (Math.abs(d) < fpMin) {
                 d = fpMin;
@@ -365,7 +369,7 @@ public final class CorrelationAnalysisApplication {
             d = 1.0 / d;
             h *= d * c;
 
-            aa = -(a + iteration) * (qab + iteration) * x / ((a + m2) * (qap + m2));
+            aa = -(leftShape + iteration) * (qab + iteration) * argument / ((leftShape + m2) * (qap + m2));
             d = 1.0 + aa * d;
             if (Math.abs(d) < fpMin) {
                 d = fpMin;

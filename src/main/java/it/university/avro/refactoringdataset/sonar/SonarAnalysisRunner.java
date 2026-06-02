@@ -1,5 +1,7 @@
 package it.university.avro.refactoringdataset.sonar;
 
+import it.university.avro.common.ApplicationLog;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -43,7 +45,7 @@ public final class SonarAnalysisRunner {
 
     public void runBeforeMetricsGeneration() {
         if (!analysisConfiguration.autoAnalyze()) {
-            System.out.println("[SONAR-AUTO] Auto analysis disabled. Set SONAR_AUTO_ANALYZE=true to enable it.");
+            ApplicationLog.info("[SONAR-AUTO] Auto analysis disabled. Set SONAR_AUTO_ANALYZE=true to enable it.");
             return;
         }
 
@@ -53,7 +55,7 @@ public final class SonarAnalysisRunner {
         if (analysisConfiguration.waitForProcessing()) {
             waitForComputeEngineTask();
         } else {
-            System.out.println("[SONAR-AUTO] Scanner completed, but processing wait is disabled.");
+            ApplicationLog.info("[SONAR-AUTO] Scanner completed, but processing wait is disabled.");
         }
     }
 
@@ -91,9 +93,9 @@ public final class SonarAnalysisRunner {
         addIfNotBlank(command, "-Dsonar.organization=", analysisConfiguration.organization());
         addIfNotBlank(command, "-Dsonar.branch.name=", cloudConfiguration.branch());
 
-        System.out.println("[SONAR-AUTO] Running Sonar analysis from " + analysisConfiguration.projectBaseDirectory());
-        System.out.println("[SONAR-AUTO] Sources=" + analysisConfiguration.sources());
-        System.out.println("[SONAR-AUTO] ProjectKey=" + cloudConfiguration.projectKey());
+        ApplicationLog.info("[SONAR-AUTO] Running Sonar analysis from " + analysisConfiguration.projectBaseDirectory());
+        ApplicationLog.info("[SONAR-AUTO] Sources=" + analysisConfiguration.sources());
+        ApplicationLog.info("[SONAR-AUTO] ProjectKey=" + cloudConfiguration.projectKey());
 
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.directory(analysisConfiguration.projectBaseDirectory().toFile());
@@ -106,7 +108,7 @@ public final class SonarAnalysisRunner {
             )) {
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    System.out.println("[SONAR-SCANNER] " + line);
+                    ApplicationLog.info("[SONAR-SCANNER] " + line);
                 }
             }
 
@@ -114,7 +116,7 @@ public final class SonarAnalysisRunner {
             if (exitCode != 0) {
                 throw new IllegalStateException("Sonar scanner failed with exit code " + exitCode);
             }
-            System.out.println("[SONAR-AUTO] Scanner execution completed.");
+            ApplicationLog.info("[SONAR-AUTO] Scanner execution completed.");
         } catch (IOException exception) {
             throw new IllegalStateException(
                     "Unable to execute sonar scanner command '" + analysisConfiguration.scannerCommand()
@@ -152,7 +154,7 @@ public final class SonarAnalysisRunner {
             throw new IllegalStateException("Sonar report-task.txt does not contain ceTaskUrl or ceTaskId");
         }
 
-        System.out.println("[SONAR-AUTO] Waiting for SonarCloud processing to finish...");
+        ApplicationLog.info("[SONAR-AUTO] Waiting for SonarCloud processing to finish...");
         Instant deadline = Instant.now().plusSeconds(analysisConfiguration.waitTimeoutSeconds());
         while (Instant.now().isBefore(deadline)) {
             JsonNode task = getJson(ceTaskUrl)
@@ -161,7 +163,7 @@ public final class SonarAnalysisRunner {
 
             String status = task.path("status").asText("");
             if ("SUCCESS".equals(status)) {
-                System.out.println("[SONAR-AUTO] SonarCloud processing completed successfully.");
+                ApplicationLog.info("[SONAR-AUTO] SonarCloud processing completed successfully.");
                 return;
             }
             if ("FAILED".equals(status) || "CANCELED".equals(status)) {
@@ -169,7 +171,7 @@ public final class SonarAnalysisRunner {
                 throw new IllegalStateException("SonarCloud processing " + status + ": " + errorMessage);
             }
 
-            System.out.println("[SONAR-AUTO] SonarCloud status=" + status);
+            ApplicationLog.info("[SONAR-AUTO] SonarCloud status=" + status);
             sleepPollInterval();
         }
 
@@ -193,12 +195,12 @@ public final class SonarAnalysisRunner {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
             );
             if (response.statusCode() != HTTP_OK) {
-                System.out.println("[SONAR-AUTO-WARNING] status=" + response.statusCode() + " | url=" + url);
+                ApplicationLog.info("[SONAR-AUTO-WARNING] status=" + response.statusCode() + " | url=" + url);
                 return Optional.empty();
             }
             return Optional.of(objectMapper.readTree(response.body()));
         } catch (IOException exception) {
-            System.out.println("[SONAR-AUTO-WARNING] unable_to_read_json | url=" + url
+            ApplicationLog.info("[SONAR-AUTO-WARNING] unable_to_read_json | url=" + url
                     + " | error=" + exception.getMessage());
             return Optional.empty();
         } catch (InterruptedException exception) {

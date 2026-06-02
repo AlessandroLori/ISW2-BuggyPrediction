@@ -10,30 +10,30 @@ public final class SimpleCsvParser {
         final StringBuilder current = new StringBuilder();
 
         boolean inQuotes = false;
-
-        for (int index = 0; index < line.length(); index++) {
+        int index = 0;
+        while (index < line.length()) {
             final char currentChar = line.charAt(index);
-
-            if (currentChar == '"') {
-                if (inQuotes && index + 1 < line.length() && line.charAt(index + 1) == '"') {
-                    current.append('"');
-                    index++;
-                } else {
-                    inQuotes = !inQuotes;
-                }
-                continue;
-            }
-
-            if (currentChar == ',' && !inQuotes) {
+            if (currentChar == '"' && isEscapedQuote(line, inQuotes, index)) {
+                current.append('"');
+                index += 2;
+            } else if (currentChar == '"') {
+                inQuotes = !inQuotes;
+                index++;
+            } else if (currentChar == ',' && !inQuotes) {
                 values.add(current.toString());
                 current.setLength(0);
-                continue;
+                index++;
+            } else {
+                current.append(currentChar);
+                index++;
             }
-
-            current.append(currentChar);
         }
 
         values.add(current.toString());
         return List.copyOf(values);
+    }
+
+    private boolean isEscapedQuote(final String line, final boolean inQuotes, final int index) {
+        return inQuotes && index + 1 < line.length() && line.charAt(index + 1) == '"';
     }
 }

@@ -3,7 +3,6 @@ package it.university.avro.exporter.util;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Objects;
 
 public final class DateParser {
 

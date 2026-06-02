@@ -1,5 +1,7 @@
 package it.university.avro.releasesnapshot.service;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.metrics.git.TemporaryGitRepository;
 import it.university.avro.metrics.snapshot.JavaSourceLocator;
 import it.university.avro.metrics.snapshot.SourceLookupResult;
@@ -69,8 +71,8 @@ public final class ReleaseClassInventoryService {
         final List<ReleaseInfo> allReleases = releaseCatalogReader.readReleases();
         final List<ReleaseInfo> selectedReleases = releaseSelectionService.selectOldestThird(allReleases);
 
-        System.out.println("Total releases found: " + allReleases.size());
-        System.out.println("Selected oldest releases (first 33%): " + selectedReleases.size());
+        ApplicationLog.info("Total releases found: " + allReleases.size());
+        ApplicationLog.info("Selected oldest releases (first 33%): " + selectedReleases.size());
 
         final List<JavaClassRecord> records = new ArrayList<>();
         final Set<String> seenReleaseAndPath = new LinkedHashSet<>();
@@ -79,7 +81,7 @@ public final class ReleaseClassInventoryService {
             for (ReleaseInfo releaseInfo : selectedReleases) {
                 final ReleaseCommitSnapshot snapshot = gitHubTagResolver.resolve(releaseInfo)
                         .orElseGet(() -> {
-                            System.out.println("Skipping release " + releaseInfo.version() + ": no matching tag found");
+                            ApplicationLog.info("Skipping release " + releaseInfo.version() + ": no matching tag found");
                             return null;
                         });
 
@@ -122,7 +124,7 @@ public final class ReleaseClassInventoryService {
 
                             if (!sourceLookup.found()) {
                                 droppedStaticSuspects++;
-                                System.out.println(
+                                ApplicationLog.info(
                                         "[DROP-INVENTORY-STATIC-SUSPECT] release=" + snapshot.version()
                                                 + " | path=" + normalizedArchivePath
                                                 + " | reason=source_not_found_at_release_tag"
@@ -147,7 +149,7 @@ public final class ReleaseClassInventoryService {
                         }
                     }
 
-                    System.out.println(
+                    ApplicationLog.info(
                             "Release " + snapshot.version()
                                     + " | tag=" + snapshot.tagName()
                                     + " | commit=" + snapshot.commitHash()
@@ -164,7 +166,7 @@ public final class ReleaseClassInventoryService {
         }
 
         csvWriter.write(records);
-        System.out.println("Generated ReleaseClassInventory.csv with rows: " + records.size());
+        ApplicationLog.info("Generated ReleaseClassInventory.csv with rows: " + records.size());
     }
 
     private void deleteQuietly(final Path file) {

@@ -74,7 +74,7 @@ public final class JavaSourceLocator {
 
         final StringBuilder builder = new StringBuilder();
         for (int index = lastJavaIndex + 1; index < parts.length - 1; index++) {
-            if (builder.length() > 0) {
+            if (!builder.isEmpty()) {
                 builder.append('.');
             }
             builder.append(parts[index]);

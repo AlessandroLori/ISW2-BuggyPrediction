@@ -33,32 +33,8 @@ public final class BuggyClassLabelResolver {
         final Map<String, Set<String>> touchedClassesByTicket = new LinkedHashMap<>();
 
         for (CommitWithPaths commit : commits) {
-            if (commit.subject() == null || commit.subject().isBlank() || commit.commitDate() == null) {
-                continue;
-            }
-
-            final Set<String> normalizedClasses = commit.changedPaths().stream()
-                    .filter(this::isProductionJavaPath)
-                    .map(ClassPathNormalizer::normalize)
-                    .filter(path -> !path.isBlank())
-                    .collect(LinkedHashSet::new, Set::add, Set::addAll);
-
-            if (normalizedClasses.isEmpty()) {
-                continue;
-            }
-
-            final Matcher matcher = BUG_ID_PATTERN.matcher(commit.subject().toUpperCase());
-            while (matcher.find()) {
-                final String bugId = matcher.group();
-                final BugTicket ticket = knownTickets.get(bugId);
-
-                if (ticket == null || !isCommitDateConsistent(commit.commitDate(), ticket)) {
-                    continue;
-                }
-
-                touchedClassesByTicket
-                        .computeIfAbsent(bugId, ignored -> new LinkedHashSet<>())
-                        .addAll(normalizedClasses);
+            if (hasUsableMetadata(commit)) {
+                addTouchedClassesForCommit(commit, knownTickets, touchedClassesByTicket);
             }
         }
 
@@ -67,6 +43,45 @@ public final class BuggyClassLabelResolver {
             immutableMap.put(entry.getKey(), Set.copyOf(entry.getValue()));
         }
         return Map.copyOf(immutableMap);
+    }
+
+
+    private boolean hasUsableMetadata(final CommitWithPaths commit) {
+        return commit.subject() != null && !commit.subject().isBlank() && commit.commitDate() != null;
+    }
+
+    private void addTouchedClassesForCommit(
+            final CommitWithPaths commit,
+            final Map<String, BugTicket> knownTickets,
+            final Map<String, Set<String>> touchedClassesByTicket
+    ) {
+        final Set<String> normalizedClasses = commit.changedPaths().stream()
+                .filter(this::isProductionJavaPath)
+                .map(ClassPathNormalizer::normalize)
+                .filter(path -> !path.isBlank())
+                .collect(LinkedHashSet::new, Set::add, Set::addAll);
+
+        if (!normalizedClasses.isEmpty()) {
+            addBugIdsFromCommit(commit, knownTickets, normalizedClasses, touchedClassesByTicket);
+        }
+    }
+
+    private void addBugIdsFromCommit(
+            final CommitWithPaths commit,
+            final Map<String, BugTicket> knownTickets,
+            final Set<String> normalizedClasses,
+            final Map<String, Set<String>> touchedClassesByTicket
+    ) {
+        final Matcher matcher = BUG_ID_PATTERN.matcher(commit.subject().toUpperCase());
+        while (matcher.find()) {
+            final String bugId = matcher.group();
+            final BugTicket ticket = knownTickets.get(bugId);
+            if (ticket != null && isCommitDateConsistent(commit.commitDate(), ticket)) {
+                touchedClassesByTicket
+                        .computeIfAbsent(bugId, ignored -> new LinkedHashSet<>())
+                        .addAll(normalizedClasses);
+            }
+        }
     }
 
     private List<CommitWithPaths> parseCommits(final String gitLogOutput) {
@@ -92,16 +107,8 @@ public final class BuggyClassLabelResolver {
                 final String[] parts = metadata.split("\u001f", -1);
                 currentCommitDate = parts.length > 1 ? parseCommitDate(parts[1].trim()) : null;
                 currentSubject = parts.length > 2 ? parts[2].trim() : "";
-                continue;
-            }
-
-            if (!insideCommit) {
-                continue;
-            }
-
-            final String trimmed = line.trim();
-            if (!trimmed.isBlank()) {
-                currentPaths.add(trimmed);
+            } else if (insideCommit && !line.trim().isBlank()) {
+                currentPaths.add(line.trim());
             }
         }
 

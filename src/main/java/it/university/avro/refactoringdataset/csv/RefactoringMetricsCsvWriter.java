@@ -1,5 +1,7 @@
 package it.university.avro.refactoringdataset.csv;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.refactoringdataset.domain.RefactoringMetricsRecord;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -72,16 +74,16 @@ public final class RefactoringMetricsCsvWriter {
                             CSVFormat.DEFAULT.builder().setHeader(HEADER).build()
                     )
             ) {
-                for (RefactoringMetricsRecord record : records) {
-                    Map<String, String> existingRow = existingRowsByClassPath.get(record.classPath());
+                for (RefactoringMetricsRecord metricsRecord : records) {
+                    Map<String, String> existingRow = existingRowsByClassPath.get(metricsRecord.classPath());
                     if (existingRow != null) {
                         printer.printRecord(rowValues(existingRow));
-                        writtenClassPaths.add(record.classPath());
-                        System.out.println("[CSV-MERGE] preserved existing row: " + record.classPath());
+                        writtenClassPaths.add(metricsRecord.classPath());
+                        ApplicationLog.info("[CSV-MERGE] preserved existing row: " + metricsRecord.classPath());
                     } else {
-                        printer.printRecord(newRowValues(record));
-                        writtenClassPaths.add(record.classPath());
-                        System.out.println("[CSV-MERGE] added new row: " + record.classPath());
+                        printer.printRecord(newRowValues(metricsRecord));
+                        writtenClassPaths.add(metricsRecord.classPath());
+                        ApplicationLog.info("[CSV-MERGE] added new row: " + metricsRecord.classPath());
                     }
                 }
 
@@ -89,7 +91,7 @@ public final class RefactoringMetricsCsvWriter {
                     String existingClassPath = existingEntry.getKey();
                     if (!writtenClassPaths.contains(existingClassPath)) {
                         printer.printRecord(rowValues(existingEntry.getValue()));
-                        System.out.println("[CSV-MERGE] preserved extra existing row not generated in this run: "
+                        ApplicationLog.info("[CSV-MERGE] preserved extra existing row not generated in this run: "
                                 + existingClassPath);
                     }
                 }
@@ -122,7 +124,7 @@ public final class RefactoringMetricsCsvWriter {
             for (CSVRecord csvRecord : parser) {
                 String classPath = csvRecord.get(CLASSPATH_COLUMN);
                 if (classPath == null || classPath.isBlank()) {
-                    System.out.println("[CSV-MERGE-WARNING] skipped existing row without classpath at CSV line "
+                    ApplicationLog.info("[CSV-MERGE-WARNING] skipped existing row without classpath at CSV line "
                             + csvRecord.getRecordNumber());
                     continue;
                 }
@@ -134,7 +136,7 @@ public final class RefactoringMetricsCsvWriter {
 
                 Map<String, String> previous = rowsByClassPath.putIfAbsent(classPath, row);
                 if (previous != null) {
-                    System.out.println("[CSV-MERGE-WARNING] duplicate existing classpath ignored after first occurrence: "
+                    ApplicationLog.info("[CSV-MERGE-WARNING] duplicate existing classpath ignored after first occurrence: "
                             + classPath);
                 }
             }
@@ -160,31 +162,31 @@ public final class RefactoringMetricsCsvWriter {
         return values;
     }
 
-    private List<String> newRowValues(RefactoringMetricsRecord record) {
+    private List<String> newRowValues(RefactoringMetricsRecord metricsRecord) {
         return List.of(
-                record.classPath(),
-                String.valueOf(record.loc()),
-                String.valueOf(record.locTouched()),
-                String.valueOf(record.revs()),
-                String.valueOf(record.fixes()),
-                String.valueOf(record.auth()),
-                String.valueOf(record.locAdded()),
-                String.valueOf(record.maxLocAdded()),
-                record.avgLocAddedAsCsv(),
-                String.valueOf(record.churn()),
-                String.valueOf(record.maxChurn()),
-                record.avgChurnAsCsv(),
-                String.valueOf(record.changeSetSize()),
-                String.valueOf(record.maxChangeSet()),
-                record.avgChangeSetAsCsv(),
-                String.valueOf(record.age()),
-                record.weightedAgeAsCsv(),
-                String.valueOf(record.commentLines()),
-                String.valueOf(record.distinctSmellTypes()),
-                String.valueOf(record.nestingDepth()),
-                String.valueOf(record.decisionPoints()),
+                metricsRecord.classPath(),
+                String.valueOf(metricsRecord.loc()),
+                String.valueOf(metricsRecord.locTouched()),
+                String.valueOf(metricsRecord.revs()),
+                String.valueOf(metricsRecord.fixes()),
+                String.valueOf(metricsRecord.auth()),
+                String.valueOf(metricsRecord.locAdded()),
+                String.valueOf(metricsRecord.maxLocAdded()),
+                metricsRecord.avgLocAddedAsCsv(),
+                String.valueOf(metricsRecord.churn()),
+                String.valueOf(metricsRecord.maxChurn()),
+                metricsRecord.avgChurnAsCsv(),
+                String.valueOf(metricsRecord.changeSetSize()),
+                String.valueOf(metricsRecord.maxChangeSet()),
+                metricsRecord.avgChangeSetAsCsv(),
+                String.valueOf(metricsRecord.age()),
+                metricsRecord.weightedAgeAsCsv(),
+                String.valueOf(metricsRecord.commentLines()),
+                String.valueOf(metricsRecord.distinctSmellTypes()),
+                String.valueOf(metricsRecord.nestingDepth()),
+                String.valueOf(metricsRecord.decisionPoints()),
                 "",
-                String.valueOf(record.pmdSmells())
+                String.valueOf(metricsRecord.pmdSmells())
         );
     }
 }

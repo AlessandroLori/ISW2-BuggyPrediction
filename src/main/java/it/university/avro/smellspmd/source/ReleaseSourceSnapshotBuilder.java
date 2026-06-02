@@ -28,35 +28,49 @@ public final class ReleaseSourceSnapshotBuilder {
         final Map<String, String> sourceByResolvedClassPath = new LinkedHashMap<>();
 
         for (ReleaseMetricsRecord releaseRecord : releaseRecords) {
-            final String requestedClassPath = normalizePath(releaseRecord.classPath());
-
-            if (sourcesByRequestedClassPath.containsKey(requestedClassPath)) {
-                continue;
-            }
-
-            final SourceLookupResult lookupResult = sourceLocator.locate(repository, tag, requestedClassPath);
-            if (!lookupResult.found()) {
-                sourcesByRequestedClassPath.put(
-                        requestedClassPath,
-                        ResolvedSourceFile.notFound(requestedClassPath)
-                );
-                continue;
-            }
-
-            final String resolvedClassPath = normalizePath(lookupResult.resolvedPath());
-            sourcesByRequestedClassPath.put(
-                    requestedClassPath,
-                    ResolvedSourceFile.found(
-                            requestedClassPath,
-                            resolvedClassPath,
-                            lookupResult.sourceCode(),
-                            lookupResult.exactMatch()
-                    )
-            );
-            sourceByResolvedClassPath.putIfAbsent(resolvedClassPath, lookupResult.sourceCode());
+            addSourceIfAbsent(repository, tag, releaseRecord, sourcesByRequestedClassPath, sourceByResolvedClassPath);
         }
 
         return new ReleaseSourceSnapshot(sourcesByRequestedClassPath, sourceByResolvedClassPath);
+    }
+
+    private void addSourceIfAbsent(
+            final TemporaryGitRepository repository,
+            final String tag,
+            final ReleaseMetricsRecord releaseRecord,
+            final Map<String, ResolvedSourceFile> sourcesByRequestedClassPath,
+            final Map<String, String> sourceByResolvedClassPath
+    ) {
+        final String requestedClassPath = normalizePath(releaseRecord.classPath());
+        if (!sourcesByRequestedClassPath.containsKey(requestedClassPath)) {
+            addResolvedSource(repository, tag, requestedClassPath, sourcesByRequestedClassPath, sourceByResolvedClassPath);
+        }
+    }
+
+    private void addResolvedSource(
+            final TemporaryGitRepository repository,
+            final String tag,
+            final String requestedClassPath,
+            final Map<String, ResolvedSourceFile> sourcesByRequestedClassPath,
+            final Map<String, String> sourceByResolvedClassPath
+    ) {
+        final SourceLookupResult lookupResult = sourceLocator.locate(repository, tag, requestedClassPath);
+        if (!lookupResult.found()) {
+            sourcesByRequestedClassPath.put(requestedClassPath, ResolvedSourceFile.notFound(requestedClassPath));
+            return;
+        }
+
+        final String resolvedClassPath = normalizePath(lookupResult.resolvedPath());
+        sourcesByRequestedClassPath.put(
+                requestedClassPath,
+                ResolvedSourceFile.found(
+                        requestedClassPath,
+                        resolvedClassPath,
+                        lookupResult.sourceCode(),
+                        lookupResult.exactMatch()
+                )
+        );
+        sourceByResolvedClassPath.putIfAbsent(resolvedClassPath, lookupResult.sourceCode());
     }
 
     private String normalizePath(final String path) {

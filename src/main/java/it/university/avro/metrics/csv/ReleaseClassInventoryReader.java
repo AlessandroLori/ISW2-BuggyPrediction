@@ -1,5 +1,7 @@
 package it.university.avro.metrics.csv;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.metrics.domain.InventoryRecord;
 
 import java.io.IOException;
@@ -9,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class ReleaseClassInventoryReader {
 
@@ -33,23 +36,7 @@ public final class ReleaseClassInventoryReader {
             final List<InventoryRecord> records = new ArrayList<>();
 
             for (int lineIndex = 1; lineIndex < lines.size(); lineIndex++) {
-                final String rawLine = lines.get(lineIndex);
-                if (rawLine.isBlank()) {
-                    continue;
-                }
-
-                final List<String> values = csvParser.parseLine(rawLine);
-                final String version = values.get(versionIndex).trim();
-                final String classPath = values.get(classPathIndex).trim();
-
-                if (version.isBlank() || classPath.isBlank()) {
-                    continue;
-                }
-
-                records.add(new InventoryRecord(
-                        version,
-                        classPath.replace('\\', '/')
-                ));
+                parseInventoryLine(lines.get(lineIndex), versionIndex, classPathIndex).ifPresent(records::add);
             }
 
             return List.copyOf(deduplicate(records));
@@ -58,17 +45,37 @@ public final class ReleaseClassInventoryReader {
         }
     }
 
+
+    private Optional<InventoryRecord> parseInventoryLine(
+            final String rawLine,
+            final int versionIndex,
+            final int classPathIndex
+    ) {
+        if (rawLine.isBlank()) {
+            return Optional.empty();
+        }
+
+        final List<String> values = csvParser.parseLine(rawLine);
+        final String version = values.get(versionIndex).trim();
+        final String classPath = values.get(classPathIndex).trim();
+        if (version.isBlank() || classPath.isBlank()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new InventoryRecord(version, classPath.replace('\\', '/')));
+    }
+
     private List<InventoryRecord> deduplicate(final List<InventoryRecord> records) {
         final Map<String, InventoryRecord> uniqueRecords = new LinkedHashMap<>();
 
-        for (InventoryRecord record : records) {
-            final String key = record.version() + "|" + record.classPath();
-            final InventoryRecord previous = uniqueRecords.putIfAbsent(key, record);
+        for (InventoryRecord inventoryRecord : records) {
+            final String key = inventoryRecord.version() + "|" + inventoryRecord.classPath();
+            final InventoryRecord previous = uniqueRecords.putIfAbsent(key, inventoryRecord);
 
             if (previous != null) {
-                System.out.println(
-                        "[DROP-DUPLICATE-METRICS-INPUT] release=" + record.version()
-                                + " | path=" + record.classPath()
+                ApplicationLog.info(
+                        "[DROP-DUPLICATE-METRICS-INPUT] release=" + inventoryRecord.version()
+                                + " | path=" + inventoryRecord.classPath()
                 );
             }
         }

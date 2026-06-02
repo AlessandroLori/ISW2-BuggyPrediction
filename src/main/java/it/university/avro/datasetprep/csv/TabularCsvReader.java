@@ -27,10 +27,10 @@ public final class TabularCsvReader {
             final List<String> headers = new ArrayList<>(parser.getHeaderMap().keySet());
             final List<Map<String, String>> rows = new ArrayList<>();
 
-            for (CSVRecord record : parser) {
+            for (CSVRecord csvRecord : parser) {
                 final Map<String, String> row = new LinkedHashMap<>();
                 for (String header : headers) {
-                    row.put(header, record.get(header));
+                    row.put(header, csvRecord.get(header));
                 }
                 rows.add(row);
             }

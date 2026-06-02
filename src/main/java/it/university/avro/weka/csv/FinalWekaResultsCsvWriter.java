@@ -8,13 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-public final class FinalWekaResultsCsvWriter {
-
-    private final Path outputCsvPath;
-
-    public FinalWekaResultsCsvWriter(final Path outputCsvPath) {
-        this.outputCsvPath = outputCsvPath;
-    }
+public record FinalWekaResultsCsvWriter(Path outputCsvPath) {
 
     public void write(final List<FinalWekaResultRecord> records) {
         try {
@@ -27,24 +21,24 @@ public final class FinalWekaResultsCsvWriter {
                 writer.write("Dataset,Classifier,FS,Balancing,Precision,Recall,AUC,Kappa,NPofB20");
                 writer.newLine();
 
-                for (FinalWekaResultRecord record : records) {
-                    writer.write(csv(record.dataset()));
+                for (FinalWekaResultRecord resultRecord : records) {
+                    writer.write(csv(resultRecord.dataset()));
                     writer.write(",");
-                    writer.write(csv(record.classifier()));
+                    writer.write(csv(resultRecord.classifier()));
                     writer.write(",");
-                    writer.write(csv(record.fs()));
+                    writer.write(csv(resultRecord.fs()));
                     writer.write(",");
-                    writer.write(csv(record.balancing()));
+                    writer.write(csv(resultRecord.balancing()));
                     writer.write(",");
-                    writer.write(record.precisionAsCsv());
+                    writer.write(resultRecord.precisionAsCsv());
                     writer.write(",");
-                    writer.write(record.recallAsCsv());
+                    writer.write(resultRecord.recallAsCsv());
                     writer.write(",");
-                    writer.write(record.aucAsCsv());
+                    writer.write(resultRecord.aucAsCsv());
                     writer.write(",");
-                    writer.write(record.kappaAsCsv());
+                    writer.write(resultRecord.kappaAsCsv());
                     writer.write(",");
-                    writer.write(csv(record.npofb20()));
+                    writer.write(csv(resultRecord.npofb20()));
                     writer.newLine();
                 }
             }
@@ -52,11 +46,6 @@ public final class FinalWekaResultsCsvWriter {
             throw new IllegalStateException("Unable to write final Weka results csv: " + outputCsvPath, exception);
         }
     }
-
-    public Path outputCsvPath() {
-        return outputCsvPath;
-    }
-
     private String csv(final String value) {
         final String safeValue = value == null ? "" : value;
         final String escaped = safeValue.replace("\"", "\"\"");

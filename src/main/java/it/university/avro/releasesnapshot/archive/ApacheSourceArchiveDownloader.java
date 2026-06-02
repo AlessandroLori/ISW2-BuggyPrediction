@@ -1,5 +1,7 @@
 package it.university.avro.releasesnapshot.archive;
 
+import it.university.avro.common.TemporaryPaths;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -29,7 +31,7 @@ public final class ApacheSourceArchiveDownloader {
                 + "avro-src-" + version + ".tar.gz";
 
         try {
-            final Path tempFile = Files.createTempFile("avro-src-" + version + "-", ".tar.gz");
+            final Path tempFile = TemporaryPaths.createFile("avro-src-" + version + "-", ".tar.gz");
 
             final HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))

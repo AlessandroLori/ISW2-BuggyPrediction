@@ -1,5 +1,7 @@
 package it.university.avro.refactoringdataset.sonar;
 
+import it.university.avro.common.ApplicationLog;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -22,6 +24,10 @@ public final class SonarCloudCodeSmellClient {
 
     private static final int HTTP_OK = 200;
     private static final int PAGE_SIZE = 500;
+    private static final String COMPONENT_KEY_LABEL = " | componentKey=";
+    private static final String COMPONENT_PATH_LABEL = " | componentPath=";
+    private static final String MEASURE_CODE_SMELLS_LABEL = " | measureCodeSmells=";
+    private static final String API_WARNING_URL_PREFIX = "[SONAR-API-WARNING] url=";
 
     private final SonarCloudConfiguration configuration;
     private final HttpClient httpClient;
@@ -43,7 +49,7 @@ public final class SonarCloudCodeSmellClient {
         String normalizedPath = normalizePath(repositoryRelativePath);
         Optional<ComponentCandidate> component = resolveComponent(normalizedPath);
         if (component.isEmpty()) {
-            return unavailable(missingComponentMessage(normalizedPath), normalizedPath);
+            return unavailable(missingComponentMessage(), normalizedPath);
         }
 
         String componentKey = component.get().key();
@@ -56,11 +62,11 @@ public final class SonarCloudCodeSmellClient {
         }
 
         if (measureValue.isPresent()) {
-            System.out.println("[SONAR-SMELL-WARNING] issues/search unavailable; using code_smells measure fallback"
+            ApplicationLog.info("[SONAR-SMELL-WARNING] issues/search unavailable; using code_smells measure fallback"
                     + " | source=" + normalizedPath
-                    + " | componentKey=" + componentKey
-                    + " | componentPath=" + component.get().path()
-                    + " | measureCodeSmells=" + measureValue.get());
+                    + COMPONENT_KEY_LABEL + componentKey
+                    + COMPONENT_PATH_LABEL + component.get().path()
+                    + MEASURE_CODE_SMELLS_LABEL + measureValue.get());
             return measureValue.get();
         }
 
@@ -77,7 +83,7 @@ public final class SonarCloudCodeSmellClient {
                 return component;
             }
             if (component.isPresent()) {
-                System.out.println("[SONAR-SMELL-WARNING] ignoring environment component override because path does not match"
+                ApplicationLog.info("[SONAR-SMELL-WARNING] ignoring environment component override because path does not match"
                         + " | expected=" + repositoryRelativePath
                         + " | overrideKey=" + overrideCandidate
                         + " | overridePath=" + component.get().path());
@@ -192,10 +198,10 @@ public final class SonarCloudCodeSmellClient {
             return Optional.of(candidates.get(0));
         }
 
-        System.out.println("[SONAR-SMELL-WARNING] multiple exact components found for "
+        ApplicationLog.info("[SONAR-SMELL-WARNING] multiple exact components found for "
                 + repositoryRelativePath + "; unable to choose safely");
         for (ComponentCandidate candidate : candidates) {
-            System.out.println("  candidate=" + candidate.key() + " | path=" + candidate.path());
+            ApplicationLog.info("  candidate=" + candidate.key() + " | path=" + candidate.path());
         }
         return Optional.empty();
     }
@@ -301,22 +307,22 @@ public final class SonarCloudCodeSmellClient {
     ) {
         String measureText = measureValue.map(String::valueOf).orElse("unavailable");
         if (measureValue.isPresent() && measureValue.get() != issueSearchCodeSmells) {
-            System.out.println("[SONAR-SMELL-WARNING] issues-search/measure mismatch"
+            ApplicationLog.info("[SONAR-SMELL-WARNING] issues-search/measure mismatch"
                     + " | source=" + repositoryRelativePath
-                    + " | componentKey=" + component.key()
-                    + " | componentPath=" + component.path()
+                    + COMPONENT_KEY_LABEL + component.key()
+                    + COMPONENT_PATH_LABEL + component.path()
                     + " | issueSearchCodeSmells=" + issueSearchCodeSmells
-                    + " | measureCodeSmells=" + measureText
+                    + MEASURE_CODE_SMELLS_LABEL + measureText
                     + " | using=issueSearchCodeSmells");
             return;
         }
 
-        System.out.println("[SONAR-SMELL] source=" + repositoryRelativePath
-                + " | componentKey=" + component.key()
-                + " | componentPath=" + component.path()
+        ApplicationLog.info("[SONAR-SMELL] source=" + repositoryRelativePath
+                + COMPONENT_KEY_LABEL + component.key()
+                + COMPONENT_PATH_LABEL + component.path()
                 + " | code_smells=" + issueSearchCodeSmells
                 + " | issueSearchCodeSmells=" + issueSearchCodeSmells
-                + " | measureCodeSmells=" + measureText);
+                + MEASURE_CODE_SMELLS_LABEL + measureText);
     }
 
     private Optional<JsonNode> getJson(String url) {
@@ -341,7 +347,7 @@ public final class SonarCloudCodeSmellClient {
 
             if (response.statusCode() != HTTP_OK) {
                 if (logWarnings) {
-                    System.out.println("[SONAR-API-WARNING] status=" + response.statusCode()
+                    logApiWarning("status=" + response.statusCode()
                             + " | url=" + sanitizeUrl(url)
                             + " | body=" + response.body());
                 }
@@ -351,7 +357,7 @@ public final class SonarCloudCodeSmellClient {
             JsonNode jsonNode = objectMapper.readTree(response.body());
             if (hasApiErrors(jsonNode)) {
                 if (logWarnings) {
-                    System.out.println("[SONAR-API-WARNING] errors=" + jsonNode.path("errors")
+                    logApiWarning("errors=" + jsonNode.path("errors")
                             + " | url=" + sanitizeUrl(url));
                 }
                 return Optional.empty();
@@ -359,21 +365,29 @@ public final class SonarCloudCodeSmellClient {
             return Optional.of(jsonNode);
         } catch (IOException exception) {
             if (logWarnings) {
-                System.out.println("[SONAR-API-WARNING] url=" + sanitizeUrl(url) + " | reason=" + exception.getMessage());
+                logApiWarningForUrl(url, exception.getMessage());
             }
             return Optional.empty();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             if (logWarnings) {
-                System.out.println("[SONAR-API-WARNING] url=" + sanitizeUrl(url) + " | reason=interrupted");
+                logApiWarningForUrl(url, "interrupted");
             }
             return Optional.empty();
         } catch (IllegalArgumentException exception) {
             if (logWarnings) {
-                System.out.println("[SONAR-API-WARNING] url=" + sanitizeUrl(url) + " | reason=" + exception.getMessage());
+                logApiWarningForUrl(url, exception.getMessage());
             }
             return Optional.empty();
         }
+    }
+
+    private void logApiWarning(String details) {
+        ApplicationLog.info("[SONAR-API-WARNING] " + details);
+    }
+
+    private void logApiWarningForUrl(String url, String reason) {
+        ApplicationLog.info(API_WARNING_URL_PREFIX + sanitizeUrl(url) + " | reason=" + reason);
     }
 
     private boolean hasApiErrors(JsonNode jsonNode) {
@@ -392,11 +406,11 @@ public final class SonarCloudCodeSmellClient {
             throw new IllegalStateException(details);
         }
 
-        System.out.println("[SONAR-SMELL-WARNING] " + details.replace(System.lineSeparator(), " | "));
+        ApplicationLog.info("[SONAR-SMELL-WARNING] " + details.replace(System.lineSeparator(), " | "));
         return -1;
     }
 
-    private String missingComponentMessage(String repositoryRelativePath) {
+    private String missingComponentMessage() {
         return "SonarCloud component not found with exact path. The file is probably not part of the already completed "
                 + "analysis, or the project key/base directory used by SonarCloud is different.";
     }

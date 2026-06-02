@@ -1,5 +1,7 @@
 package it.university.avro.metrics.snapshot;
 
+import it.university.avro.common.ApplicationLog;
+
 import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
@@ -47,7 +49,7 @@ public final class JavaStructureMetricExtractor {
 
             return new StructuralMetrics(maxNestingDepth, decisionPoints);
         } catch (ParseProblemException exception) {
-            System.out.println("[STRUCTURE-PARSE-SUSPECT] reason=" + exception.getMessage());
+            ApplicationLog.info("[STRUCTURE-PARSE-SUSPECT] reason=" + exception.getMessage());
             return StructuralMetrics.empty();
         }
     }

@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class TicketDetailsBugIdReader {
 
@@ -33,39 +34,63 @@ public final class TicketDetailsBugIdReader {
             final Map<String, BugTicket> tickets = new LinkedHashMap<>();
 
             for (int lineIndex = 1; lineIndex < lines.size(); lineIndex++) {
-                final String rawLine = lines.get(lineIndex);
-                if (rawLine.isBlank()) {
-                    continue;
-                }
-
-                final List<String> values = csvParser.parseLine(rawLine);
-
-                if (ticketIdIndex >= values.size()
-                        || createDateIndex >= values.size()
-                        || closedDateIndex >= values.size()) {
-                    continue;
-                }
-
-                final String ticketId = values.get(ticketIdIndex).trim().toUpperCase();
-                final String createDateRaw = values.get(createDateIndex).trim();
-                final String closedDateRaw = values.get(closedDateIndex).trim();
-                final String injectedVersion = readOptionalValue(values, injectedVersionIndex);
-                final String fixedVersion = readOptionalValue(values, fixedVersionIndex);
-
-                if (ticketId.isBlank() || createDateRaw.isBlank() || closedDateRaw.isBlank()) {
-                    continue;
-                }
-
-                final LocalDate creationDate = parseLocalDate(createDateRaw);
-                final LocalDate closedDate = parseLocalDate(closedDateRaw);
-
-                tickets.put(ticketId, new BugTicket(ticketId, creationDate, closedDate, injectedVersion, fixedVersion));
+                parseTicketLine(
+                        lines.get(lineIndex),
+                        ticketIdIndex,
+                        createDateIndex,
+                        closedDateIndex,
+                        injectedVersionIndex,
+                        fixedVersionIndex
+                ).ifPresent(ticket -> tickets.put(ticket.ticketId(), ticket));
             }
 
             return Map.copyOf(tickets);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read TicketDetails csv " + csvPath, exception);
         }
+    }
+
+
+    private Optional<BugTicket> parseTicketLine(
+            final String rawLine,
+            final int ticketIdIndex,
+            final int createDateIndex,
+            final int closedDateIndex,
+            final int injectedVersionIndex,
+            final int fixedVersionIndex
+    ) {
+        if (rawLine.isBlank()) {
+            return Optional.empty();
+        }
+
+        final List<String> values = csvParser.parseLine(rawLine);
+        if (hasMissingRequiredValue(values, ticketIdIndex, createDateIndex, closedDateIndex)) {
+            return Optional.empty();
+        }
+
+        final String ticketId = values.get(ticketIdIndex).trim().toUpperCase();
+        final String createDateRaw = values.get(createDateIndex).trim();
+        final String closedDateRaw = values.get(closedDateIndex).trim();
+        if (ticketId.isBlank() || createDateRaw.isBlank() || closedDateRaw.isBlank()) {
+            return Optional.empty();
+        }
+
+        final String injectedVersion = readOptionalValue(values, injectedVersionIndex);
+        final String fixedVersion = readOptionalValue(values, fixedVersionIndex);
+        final LocalDate creationDate = parseLocalDate(createDateRaw);
+        final LocalDate closedDate = parseLocalDate(closedDateRaw);
+        return Optional.of(new BugTicket(ticketId, creationDate, closedDate, injectedVersion, fixedVersion));
+    }
+
+    private boolean hasMissingRequiredValue(
+            final List<String> values,
+            final int ticketIdIndex,
+            final int createDateIndex,
+            final int closedDateIndex
+    ) {
+        return ticketIdIndex >= values.size()
+                || createDateIndex >= values.size()
+                || closedDateIndex >= values.size();
     }
 
     private int findRequiredIndex(final List<String> header, final String columnName) {

@@ -1,5 +1,7 @@
 package it.university.avro.refactoringdataset;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.metrics.snapshot.JavaLineMetricExtractor;
 import it.university.avro.refactoringdataset.config.RefactoringDatasetConfiguration;
 import it.university.avro.refactoringdataset.csv.RefactoringMetricsCsvWriter;
@@ -24,6 +26,6 @@ public final class RefactoringDatasetApplication {
         );
 
         service.generate(configuration);
-        System.out.println("Generated refactoring metrics csv: " + configuration.outputCsvPath());
+        ApplicationLog.info("Generated refactoring metrics csv: " + configuration.outputCsvPath());
     }
 }

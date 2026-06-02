@@ -1,5 +1,7 @@
 package it.university.avro.smellspmd.pmd;
 
+import it.university.avro.common.ApplicationLog;
+
 import it.university.avro.smellspmd.domain.PmdClassSmellMetrics;
 import net.sourceforge.pmd.PMDConfiguration;
 import net.sourceforge.pmd.PmdAnalysis;
@@ -45,12 +47,12 @@ public final class PmdJavaSmellAnalyzer {
             final Map<String, Integer> smellCounts = initializeCountMap(sourceByResolvedClassPath);
             final Map<String, Set<String>> distinctRuleNames = initializeDistinctRuleMap(sourceByResolvedClassPath);
 
-            report.getProcessingErrors().forEach(error -> System.out.println(
+            report.getProcessingErrors().forEach(error -> ApplicationLog.info(
                     "[PMD-PROCESSING-ERROR] file=" + error.getFileId().getOriginalPath()
                             + " | message=" + error.getMsg()
             ));
 
-            report.getConfigurationErrors().forEach(error -> System.out.println(
+            report.getConfigurationErrors().forEach(error -> ApplicationLog.info(
                     "[PMD-CONFIG-ERROR] rule=" + error.rule().getName()
                             + " | message=" + error.issue()
             ));

@@ -4,6 +4,9 @@ import java.util.Objects;
 
 public final class LogicalClassPathResolver {
 
+    private static final String JAVA_EXTENSION = ".java";
+    private static final String PATH_SEPARATOR = "/";
+
     public String resolve(
             final String archivePath,
             final String packageName,
@@ -12,31 +15,31 @@ public final class LogicalClassPathResolver {
         Objects.requireNonNull(archivePath, "archivePath must not be null");
         Objects.requireNonNull(typeName, "typeName must not be null");
 
-        final String normalizedArchivePath = archivePath.replace('\\', '/');
+        final String normalizedArchivePath = archivePath.replace('\\', PATH_SEPARATOR.charAt(0));
         final SourceRootLocation sourceRootLocation = detectSourceRootLocation(normalizedArchivePath);
 
         final String normalizedPackageName = packageName == null ? "" : packageName.trim();
         final String packagePath = normalizedPackageName.isBlank()
                 ? ""
-                : normalizedPackageName.replace('.', '/') + "/";
+                : normalizedPackageName.replace('.', PATH_SEPARATOR.charAt(0)) + PATH_SEPARATOR;
 
         if (sourceRootLocation == null) {
             return packagePath.isBlank()
-                    ? typeName + ".java"
-                    : packagePath + typeName + ".java";
+                    ? typeName + JAVA_EXTENSION
+                    : packagePath + typeName + JAVA_EXTENSION;
         }
 
         return sourceRootLocation.prefixBeforeSourceRoot()
                 + sourceRootLocation.sourceRoot()
                 + packagePath
                 + typeName
-                + ".java";
+                + JAVA_EXTENSION;
     }
 
     private SourceRootLocation detectSourceRootLocation(final String normalizedArchivePath) {
         final String[] supportedRoots = {
-                "src/main/java/",
-                "src/java/"
+                "src/main/java" + PATH_SEPARATOR,
+                "src/java" + PATH_SEPARATOR
         };
 
         for (String sourceRoot : supportedRoots) {

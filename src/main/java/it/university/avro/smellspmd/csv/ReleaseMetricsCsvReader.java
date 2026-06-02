@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public final class ReleaseMetricsCsvReader {
 
@@ -21,76 +22,86 @@ public final class ReleaseMetricsCsvReader {
             }
 
             final List<String> header = csvParser.parseLine(lines.get(0));
-
-            final int versionIndex = findRequiredIndex(header, "version");
-            final int classPathIndex = findRequiredIndex(header, "classpath");
-            final int locIndex = findRequiredIndex(header, "LOC");
-            final int locTouchedIndex = findRequiredIndex(header, "LOC_TOUCHED");
-            final int revsIndex = findRequiredIndex(header, "REVS");
-            final int fixesIndex = findRequiredIndex(header, "FIXES");
-            final int authIndex = findRequiredIndex(header, "AUTH");
-            final int locAddedIndex = findRequiredIndex(header, "LOC_ADDED");
-            final int maxLocAddedIndex = findRequiredIndex(header, "MAX_LOC_ADDED");
-            final int avgLocAddedIndex = findRequiredIndex(header, "AVG_LOC_ADDED");
-            final int churnIndex = findRequiredIndex(header, "CHURN");
-            final int maxChurnIndex = findRequiredIndex(header, "MAX_CHURN");
-            final int avgChurnIndex = findRequiredIndex(header, "AVG_CHURN");
-            final int changeSetSizeIndex = findRequiredIndex(header, "CHANGE_SET_SIZE");
-            final int maxChangeSetIndex = findRequiredIndex(header, "MAX_CHANGE_SET");
-            final int avgChangeSetIndex = findRequiredIndex(header, "AVG_CHANGE_SET");
-            final int ageIndex = findRequiredIndex(header, "AGE");
-            final int weightedAgeIndex = findRequiredIndex(header, "WEIGHTED_AGE");
-            final int commentLinesIndex = findRequiredIndex(header, "COMMENT_LINES");
-            final int nsmellsIndex = findRequiredIndex(header, "nsmells");
-            final int distinctSmellTypesIndex = findRequiredIndex(header, "DISTINCT_SMELL_TYPES");
-            final int nestingDepthIndex = findRequiredIndex(header, "NESTING_DEPTH");
-            final int decisionPointsIndex = findRequiredIndex(header, "DECISION_POINTS");
-            final int buggyIndex = findRequiredIndex(header, "BUGGY");
-
+            final ColumnIndexes indexes = resolveColumnIndexes(header);
             final List<ReleaseMetricsRecord> records = new ArrayList<>();
             for (int lineIndex = 1; lineIndex < lines.size(); lineIndex++) {
-                final String rawLine = lines.get(lineIndex);
-                if (rawLine.isBlank()) {
-                    continue;
-                }
-
-                final List<String> values = csvParser.parseLine(rawLine);
-                if (values.size() <= buggyIndex) {
-                    continue;
-                }
-
-                records.add(new ReleaseMetricsRecord(
-                        values.get(versionIndex).trim(),
-                        values.get(classPathIndex).trim(),
-                        parseInteger(values.get(locIndex)),
-                        parseInteger(values.get(locTouchedIndex)),
-                        parseInteger(values.get(revsIndex)),
-                        parseInteger(values.get(fixesIndex)),
-                        parseInteger(values.get(authIndex)),
-                        parseInteger(values.get(locAddedIndex)),
-                        parseInteger(values.get(maxLocAddedIndex)),
-                        parseDouble(values.get(avgLocAddedIndex)),
-                        parseInteger(values.get(churnIndex)),
-                        parseInteger(values.get(maxChurnIndex)),
-                        parseDouble(values.get(avgChurnIndex)),
-                        parseInteger(values.get(changeSetSizeIndex)),
-                        parseInteger(values.get(maxChangeSetIndex)),
-                        parseDouble(values.get(avgChangeSetIndex)),
-                        parseInteger(values.get(ageIndex)),
-                        parseDouble(values.get(weightedAgeIndex)),
-                        parseInteger(values.get(commentLinesIndex)),
-                        values.get(nsmellsIndex).trim(),
-                        parseInteger(values.get(distinctSmellTypesIndex)),
-                        parseInteger(values.get(nestingDepthIndex)),
-                        parseInteger(values.get(decisionPointsIndex)),
-                        values.get(buggyIndex).trim()
-                ));
+                parseMetricsLine(lines.get(lineIndex), indexes).ifPresent(records::add);
             }
 
             return List.copyOf(records);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read metrics csv " + csvPath, exception);
         }
+    }
+
+    private Optional<ReleaseMetricsRecord> parseMetricsLine(
+            final String rawLine,
+            final ColumnIndexes indexes
+    ) {
+        if (rawLine.isBlank()) {
+            return Optional.empty();
+        }
+
+        final List<String> values = csvParser.parseLine(rawLine);
+        if (values.size() <= indexes.buggyIndex()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new ReleaseMetricsRecord(
+                values.get(indexes.versionIndex()).trim(),
+                values.get(indexes.classPathIndex()).trim(),
+                parseInteger(values.get(indexes.locIndex())),
+                parseInteger(values.get(indexes.locTouchedIndex())),
+                parseInteger(values.get(indexes.revsIndex())),
+                parseInteger(values.get(indexes.fixesIndex())),
+                parseInteger(values.get(indexes.authIndex())),
+                parseInteger(values.get(indexes.locAddedIndex())),
+                parseInteger(values.get(indexes.maxLocAddedIndex())),
+                parseDouble(values.get(indexes.avgLocAddedIndex())),
+                parseInteger(values.get(indexes.churnIndex())),
+                parseInteger(values.get(indexes.maxChurnIndex())),
+                parseDouble(values.get(indexes.avgChurnIndex())),
+                parseInteger(values.get(indexes.changeSetSizeIndex())),
+                parseInteger(values.get(indexes.maxChangeSetIndex())),
+                parseDouble(values.get(indexes.avgChangeSetIndex())),
+                parseInteger(values.get(indexes.ageIndex())),
+                parseDouble(values.get(indexes.weightedAgeIndex())),
+                parseInteger(values.get(indexes.commentLinesIndex())),
+                values.get(indexes.nsmellsIndex()).trim(),
+                parseInteger(values.get(indexes.distinctSmellTypesIndex())),
+                parseInteger(values.get(indexes.nestingDepthIndex())),
+                parseInteger(values.get(indexes.decisionPointsIndex())),
+                values.get(indexes.buggyIndex()).trim()
+        ));
+    }
+
+    private ColumnIndexes resolveColumnIndexes(final List<String> header) {
+        return new ColumnIndexes(
+                findRequiredIndex(header, "version"),
+                findRequiredIndex(header, "classpath"),
+                findRequiredIndex(header, "LOC"),
+                findRequiredIndex(header, "LOC_TOUCHED"),
+                findRequiredIndex(header, "REVS"),
+                findRequiredIndex(header, "FIXES"),
+                findRequiredIndex(header, "AUTH"),
+                findRequiredIndex(header, "LOC_ADDED"),
+                findRequiredIndex(header, "MAX_LOC_ADDED"),
+                findRequiredIndex(header, "AVG_LOC_ADDED"),
+                findRequiredIndex(header, "CHURN"),
+                findRequiredIndex(header, "MAX_CHURN"),
+                findRequiredIndex(header, "AVG_CHURN"),
+                findRequiredIndex(header, "CHANGE_SET_SIZE"),
+                findRequiredIndex(header, "MAX_CHANGE_SET"),
+                findRequiredIndex(header, "AVG_CHANGE_SET"),
+                findRequiredIndex(header, "AGE"),
+                findRequiredIndex(header, "WEIGHTED_AGE"),
+                findRequiredIndex(header, "COMMENT_LINES"),
+                findRequiredIndex(header, "nsmells"),
+                findRequiredIndex(header, "DISTINCT_SMELL_TYPES"),
+                findRequiredIndex(header, "NESTING_DEPTH"),
+                findRequiredIndex(header, "DECISION_POINTS"),
+                findRequiredIndex(header, "BUGGY")
+        );
     }
 
     private int findRequiredIndex(final List<String> header, final String columnName) {
@@ -115,5 +126,33 @@ public final class ReleaseMetricsCsvReader {
             return 0.0;
         }
         return Double.parseDouble(normalized);
+    }
+
+    private record ColumnIndexes(
+            int versionIndex,
+            int classPathIndex,
+            int locIndex,
+            int locTouchedIndex,
+            int revsIndex,
+            int fixesIndex,
+            int authIndex,
+            int locAddedIndex,
+            int maxLocAddedIndex,
+            int avgLocAddedIndex,
+            int churnIndex,
+            int maxChurnIndex,
+            int avgChurnIndex,
+            int changeSetSizeIndex,
+            int maxChangeSetIndex,
+            int avgChangeSetIndex,
+            int ageIndex,
+            int weightedAgeIndex,
+            int commentLinesIndex,
+            int nsmellsIndex,
+            int distinctSmellTypesIndex,
+            int nestingDepthIndex,
+            int decisionPointsIndex,
+            int buggyIndex
+    ) {
     }
 }

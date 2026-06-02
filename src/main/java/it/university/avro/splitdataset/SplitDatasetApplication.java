@@ -1,5 +1,7 @@
 package it.university.avro.splitdataset;
 
+import it.university.avro.common.ApplicationLog;
+
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
@@ -17,10 +19,13 @@ import java.util.Map;
 
 public final class SplitDatasetApplication {
 
-    private static final Path DEFAULT_INPUT = Path.of("output", "Dataset.csv");
-    private static final Path DATASET_C_OUTPUT = Path.of("output", "DatasetC.csv");
-    private static final Path DATASET_B_PLUS_OUTPUT = Path.of("output", "DatasetBplus.csv");
-    private static final Path DATASET_B_OUTPUT = Path.of("output", "DatasetB.csv");
+    private static final String OUTPUT_DIRECTORY = "output";
+    private static final String GENERATED_MESSAGE_PREFIX = "Generated: ";
+
+    private static final Path DEFAULT_INPUT = Path.of(OUTPUT_DIRECTORY, "Dataset.csv");
+    private static final Path DATASET_C_OUTPUT = Path.of(OUTPUT_DIRECTORY, "DatasetC.csv");
+    private static final Path DATASET_B_PLUS_OUTPUT = Path.of(OUTPUT_DIRECTORY, "DatasetBplus.csv");
+    private static final Path DATASET_B_OUTPUT = Path.of(OUTPUT_DIRECTORY, "DatasetB.csv");
 
     private static final double ZERO_EPSILON = 1.0E-12;
 
@@ -33,9 +38,9 @@ public final class SplitDatasetApplication {
 
         splitDataset(inputPath);
 
-        System.out.println("Generated: " + DATASET_C_OUTPUT);
-        System.out.println("Generated: " + DATASET_B_PLUS_OUTPUT);
-        System.out.println("Generated: " + DATASET_B_OUTPUT);
+        ApplicationLog.info(GENERATED_MESSAGE_PREFIX + DATASET_C_OUTPUT);
+        ApplicationLog.info(GENERATED_MESSAGE_PREFIX + DATASET_B_PLUS_OUTPUT);
+        ApplicationLog.info(GENERATED_MESSAGE_PREFIX + DATASET_B_OUTPUT);
     }
 
     private static void splitDataset(Path inputPath) throws IOException {
@@ -82,18 +87,18 @@ public final class SplitDatasetApplication {
                 int rowsC = 0;
                 int rowsBPlus = 0;
 
-                for (CSVRecord record : parser) {
-                    double smellValue = parseNumericValue(record, smellColumnName);
+                for (CSVRecord csvRecord : parser) {
+                    double smellValue = parseNumericValue(csvRecord, smellColumnName);
 
                     if (isZero(smellValue)) {
-                        printOriginalRecord(datasetCPrinter, headers, record);
+                        printOriginalRecord(datasetCPrinter, headers, csvRecord);
                         rowsC++;
                     } else if (smellValue > ZERO_EPSILON) {
-                        printOriginalRecord(datasetBPlusPrinter, headers, record);
+                        printOriginalRecord(datasetBPlusPrinter, headers, csvRecord);
                         printRecordWithZeroSmellColumns(
                                 datasetBPrinter,
                                 headers,
-                                record,
+                                csvRecord,
                                 smellColumnName,
                                 distinctSmellTypesColumnName
                         );
@@ -101,17 +106,17 @@ public final class SplitDatasetApplication {
                     } else {
                         throw new IllegalStateException(
                                 "Negative smell value found at CSV row "
-                                        + record.getRecordNumber()
+                                        + csvRecord.getRecordNumber()
                                         + ": "
                                         + smellValue
                         );
                     }
                 }
 
-                System.out.println("Input rows processed: " + (rowsC + rowsBPlus));
-                System.out.println("DatasetC rows, smells = 0: " + rowsC);
-                System.out.println("DatasetBplus rows, smells > 0: " + rowsBPlus);
-                System.out.println("DatasetB rows, smells and distinct smell types forced to 0: " + rowsBPlus);
+                ApplicationLog.info("Input rows processed: " + (rowsC + rowsBPlus));
+                ApplicationLog.info("DatasetC rows, smells = 0: " + rowsC);
+                ApplicationLog.info("DatasetBplus rows, smells > 0: " + rowsBPlus);
+                ApplicationLog.info("DatasetB rows, smells and distinct smell types forced to 0: " + rowsBPlus);
             }
         }
     }
@@ -167,15 +172,15 @@ public final class SplitDatasetApplication {
                 .replace(" ", "");
     }
 
-    private static double parseNumericValue(CSVRecord record, String columnName) {
-        String rawValue = record.get(columnName);
+    private static double parseNumericValue(CSVRecord csvRecord, String columnName) {
+        String rawValue = csvRecord.get(columnName);
 
         if (rawValue == null || rawValue.isBlank()) {
             throw new IllegalStateException(
                     "Blank value for column "
                             + columnName
                             + " at CSV row "
-                            + record.getRecordNumber()
+                            + csvRecord.getRecordNumber()
             );
         }
 
@@ -186,7 +191,7 @@ public final class SplitDatasetApplication {
                     "Invalid numeric value for column "
                             + columnName
                             + " at CSV row "
-                            + record.getRecordNumber()
+                            + csvRecord.getRecordNumber()
                             + ": "
                             + rawValue,
                     exception
@@ -201,10 +206,10 @@ public final class SplitDatasetApplication {
     private static void printOriginalRecord(
             CSVPrinter printer,
             List<String> headers,
-            CSVRecord record
+            CSVRecord csvRecord
     ) throws IOException {
         for (String header : headers) {
-            printer.print(record.get(header));
+            printer.print(csvRecord.get(header));
         }
 
         printer.println();
@@ -213,7 +218,7 @@ public final class SplitDatasetApplication {
     private static void printRecordWithZeroSmellColumns(
             CSVPrinter printer,
             List<String> headers,
-            CSVRecord record,
+            CSVRecord csvRecord,
             String smellColumnName,
             String distinctSmellTypesColumnName
     ) throws IOException {
@@ -221,7 +226,7 @@ public final class SplitDatasetApplication {
             if (header.equals(smellColumnName) || header.equals(distinctSmellTypesColumnName)) {
                 printer.print("0");
             } else {
-                printer.print(record.get(header));
+                printer.print(csvRecord.get(header));
             }
         }
 

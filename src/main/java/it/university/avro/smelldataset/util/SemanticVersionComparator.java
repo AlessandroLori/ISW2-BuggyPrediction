@@ -8,11 +8,9 @@ import java.util.regex.Pattern;
 
 public final class SemanticVersionComparator implements Comparator<String> {
 
-    public static final SemanticVersionComparator INSTANCE = new SemanticVersionComparator();
-
     private static final Pattern LEADING_NUMBER = Pattern.compile("^(\\d+)");
 
-    private SemanticVersionComparator() {
+    public SemanticVersionComparator() {
     }
 
     @Override

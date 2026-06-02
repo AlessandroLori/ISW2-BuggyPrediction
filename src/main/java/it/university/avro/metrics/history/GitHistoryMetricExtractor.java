@@ -209,26 +209,6 @@ public final class GitHistoryMetricExtractor {
         return !commitDate.isBefore(lowerBound) && !commitDate.isAfter(upperBound);
     }
 
-    private LocalDate parseCommitDate(final String rawValue) {
-        if (rawValue == null || rawValue.isBlank()) {
-            return null;
-        }
-
-        if (rawValue.length() >= 10) {
-            return LocalDate.parse(rawValue.substring(0, 10));
-        }
-
-        return LocalDate.parse(rawValue);
-    }
-
-    private int parseNumstatValue(final String rawValue) {
-        if (rawValue == null || rawValue.isBlank() || rawValue.equals("-")) {
-            return 0;
-        }
-
-        return Integer.parseInt(rawValue.trim());
-    }
-
     private int resolveChangeSetSize(final TemporaryGitRepository repository, final String commitHash) {
         if (commitHash == null || commitHash.isBlank()) {
             return 0;
@@ -304,7 +284,7 @@ public final class GitHistoryMetricExtractor {
         }
     }
 
-    private final class CommitTouchBuilder {
+    private static final class CommitTouchBuilder {
 
         private final List<CommitTouch> touches = new ArrayList<>();
         private String currentCommitHash;
@@ -336,6 +316,26 @@ public final class GitHistoryMetricExtractor {
                     currentDeleted += parseNumstatValue(numstat[1]);
                 }
             }
+        }
+
+        private static LocalDate parseCommitDate(final String rawValue) {
+            if (rawValue == null || rawValue.isBlank()) {
+                return null;
+            }
+
+            if (rawValue.length() >= 10) {
+                return LocalDate.parse(rawValue.substring(0, 10));
+            }
+
+            return LocalDate.parse(rawValue);
+        }
+
+        private static int parseNumstatValue(final String rawValue) {
+            if (rawValue == null || rawValue.isBlank() || rawValue.equals("-")) {
+                return 0;
+            }
+
+            return Integer.parseInt(rawValue.trim());
         }
 
         List<CommitTouch> finish() {

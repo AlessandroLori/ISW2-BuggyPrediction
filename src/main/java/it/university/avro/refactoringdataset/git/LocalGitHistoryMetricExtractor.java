@@ -139,32 +139,7 @@ public final class LocalGitHistoryMetricExtractor {
         return builder.finish();
     }
 
-    private void collectBugIds(final String message, final Set<String> collector) {
-        if (message == null || message.isBlank()) {
-            return;
-        }
-
-        final Matcher matcher = BUG_ID_PATTERN.matcher(message.toUpperCase());
-        while (matcher.find()) {
-            collector.add(matcher.group());
-        }
-    }
-
-    private LocalDate parseCommitDate(final String rawValue) {
-        if (rawValue == null || rawValue.isBlank()) {
-            return null;
-        }
-        return LocalDate.parse(rawValue.substring(0, Math.min(10, rawValue.length())));
-    }
-
-    private int parseNumstatValue(final String rawValue) {
-        if (rawValue == null || rawValue.isBlank() || rawValue.equals("-")) {
-            return 0;
-        }
-        return Integer.parseInt(rawValue.trim());
-    }
-
-    private final class HistoryAccumulator {
+    private static final class HistoryAccumulator {
 
         private final LocalDate referenceDate;
         private final Set<String> authors = new LinkedHashSet<>();
@@ -197,6 +172,17 @@ public final class LocalGitHistoryMetricExtractor {
         private void includeAuthor(final String author) {
             if (!author.isBlank()) {
                 authors.add(author);
+            }
+        }
+
+        private static void collectBugIds(final String message, final Set<String> collector) {
+            if (message == null || message.isBlank()) {
+                return;
+            }
+
+            final Matcher matcher = BUG_ID_PATTERN.matcher(message.toUpperCase());
+            while (matcher.find()) {
+                collector.add(matcher.group());
             }
         }
 
@@ -260,7 +246,7 @@ public final class LocalGitHistoryMetricExtractor {
         }
     }
 
-    private final class CommitTouchBuilder {
+    private static final class CommitTouchBuilder {
 
         private final List<CommitTouch> touches = new ArrayList<>();
         private String currentCommitHash = "";
@@ -326,6 +312,20 @@ public final class LocalGitHistoryMetricExtractor {
                 currentAdded += parseNumstatValue(numstat[0]);
                 currentDeleted += parseNumstatValue(numstat[1]);
             }
+        }
+
+        private static LocalDate parseCommitDate(final String rawValue) {
+            if (rawValue == null || rawValue.isBlank()) {
+                return null;
+            }
+            return LocalDate.parse(rawValue.substring(0, Math.min(10, rawValue.length())));
+        }
+
+        private static int parseNumstatValue(final String rawValue) {
+            if (rawValue == null || rawValue.isBlank() || rawValue.equals("-")) {
+                return 0;
+            }
+            return Integer.parseInt(rawValue.trim());
         }
 
         List<CommitTouch> finish() {

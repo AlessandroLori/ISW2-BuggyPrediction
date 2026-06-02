@@ -8,13 +8,15 @@ import java.util.List;
 
 public final class LatestOfficialAvroReleaseSelector {
 
+    private final SemanticVersionComparator versionComparator = new SemanticVersionComparator();
+
     public SelectedAvroReleases select(final List<AvroRelease> officialReleases) {
         if (officialReleases == null || officialReleases.isEmpty()) {
             throw new IllegalArgumentException("officialReleases must not be empty");
         }
 
         final List<AvroRelease> ordered = officialReleases.stream()
-                .sorted((first, second) -> SemanticVersionComparator.INSTANCE.compare(
+                .sorted((first, second) -> versionComparator.compare(
                         first.version(),
                         second.version()
                 ))

@@ -1,12 +1,12 @@
 package it.university.avro.metrics.service;
 
 import it.university.avro.common.ApplicationLog;
-
 import it.university.avro.exporter.iv.service.VersionNameComparator;
 import it.university.avro.metrics.csv.ReleaseClassInventoryReader;
 import it.university.avro.metrics.csv.ReleaseMetricsCsvWriter;
 import it.university.avro.metrics.csv.TicketDetailsBugIdReader;
 import it.university.avro.metrics.domain.BugTicket;
+import it.university.avro.metrics.domain.HistoryMetrics;
 import it.university.avro.metrics.domain.InventoryRecord;
 import it.university.avro.metrics.domain.ReleaseMetricsRecord;
 import it.university.avro.metrics.domain.StaticMetrics;
@@ -31,6 +31,8 @@ import java.util.Set;
 public final class ReleaseMetricsGenerationService {
 
     private static final String PATH_LABEL = " | path=";
+    private static final String YES = "YES";
+    private static final String NO = "NO";
 
     private final ReleaseClassInventoryReader inventoryReader;
     private final TicketDetailsBugIdReader bugIdReader;
@@ -66,147 +68,176 @@ public final class ReleaseMetricsGenerationService {
     ) {
         final List<InventoryRecord> inventoryRecords = inventoryReader.read(inventoryCsvPath);
         final Map<String, BugTicket> tickets = bugIdReader.readTickets(ticketDetailsCsvPath);
-
         final List<ReleaseMetricsRecord> outputRecords = new ArrayList<>();
 
         try (TemporaryGitRepository repository = TemporaryGitRepository.cloneRepository(repositoryUrl)) {
-            final Map<String, Set<String>> touchedClassesByTicket = buggyClassLabelResolver
-                    .resolveTouchedClassesByTicket(repository, tickets);
-            final Map<String, Set<String>> buggyClassesByVersion = buildBuggyClassesByVersion(
+            final Map<String, Set<String>> buggyClassesByVersion = prepareBuggyClassesByVersion(
+                    repository,
                     inventoryRecords,
-                    tickets,
-                    touchedClassesByTicket
+                    tickets
             );
-
-            logBuggyLabelSummary(tickets, touchedClassesByTicket, buggyClassesByVersion);
-
-            String currentVersion = null;
-            String currentTag = null;
-            String currentWindowStartTag = null;
-            String lastResolvedTag = null;
-            LocalDate currentReleaseDate = null;
+            final ReleaseProcessingContext context = new ReleaseProcessingContext(repository, tickets, buggyClassesByVersion);
 
             for (InventoryRecord inventoryRecord : inventoryRecords) {
-                if (!inventoryRecord.version().equals(currentVersion)) {
-                    final String resolvedVersion = inventoryRecord.version();
-                    currentVersion = resolvedVersion;
-
-                    currentWindowStartTag = lastResolvedTag;
-
-                    currentTag = repository.resolveTag(resolvedVersion)
-                            .orElseThrow(() -> new IllegalStateException(
-                                    "Unable to resolve git tag for version " + resolvedVersion
-                            ));
-
-                    String finalCurrentTag = currentTag;
-                    currentReleaseDate = repository.resolveCommitDateForRef(currentTag)
-                            .orElseThrow(() -> new IllegalStateException(
-                                    "Unable to resolve commit date for tag " + finalCurrentTag
-                            ));
-
-                    lastResolvedTag = currentTag;
-
-                    ApplicationLog.info(
-                            "Processing release " + currentVersion
-                                    + " with tag " + currentTag
-                                    + " | previousTag=" + currentWindowStartTag
-                    );
-                }
-
-                final SourceLookupResult sourceLookup = sourceLocator.locate(
-                        repository,
-                        currentTag,
-                        inventoryRecord.classPath()
-                );
-
-                final String effectivePath = sourceLookup.resolvedPath();
-                final StaticMetrics staticMetrics = sourceLookup.found()
-                        ? staticMetricExtractor.extract(sourceLookup.sourceCode())
-                        : StaticMetrics.empty();
-
-                final HistoryExtractionResult historyResult = historyMetricExtractor.extract(
-                        repository,
-                        currentWindowStartTag,
-                        currentTag,
-                        currentReleaseDate,
-                        effectivePath,
-                        tickets
-                );
-
-                if (!sourceLookup.found()) {
-                    ApplicationLog.info(
-                            "[STATIC-SUSPECT] release=" + inventoryRecord.version()
-                                    + PATH_LABEL + inventoryRecord.classPath()
-                                    + " | reason=source_not_found_at_release_tag"
-                    );
-                } else if (!sourceLookup.exactMatch()) {
-                    ApplicationLog.info(
-                            "[PATH-RECOVERED] release=" + inventoryRecord.version()
-                                    + " | requested=" + inventoryRecord.classPath()
-                                    + " | resolved=" + sourceLookup.resolvedPath()
-                    );
-                }
-
-                if (historyResult.metrics().revs() == 0
-                        && historyResult.metrics().auth() == 0
-                        && historyResult.metrics().locTouched() == 0
-                        && historyResult.metrics().locAdded() == 0
-                        && historyResult.metrics().churn() == 0) {
-
-                    if (!historyResult.hasWindowCommits() && historyResult.hasCumulativeCommits()) {
-                        ApplicationLog.info(
-                                "[ZERO-OK] release=" + inventoryRecord.version()
-                                        + PATH_LABEL + inventoryRecord.classPath()
-                                        + " | reason=no_commits_in_release_window"
-                        );
-                    } else if (!historyResult.hasWindowCommits() && !historyResult.hasCumulativeCommits() && sourceLookup.found()) {
-                        ApplicationLog.info(
-                                "[ZERO-SUSPECT] release=" + inventoryRecord.version()
-                                        + PATH_LABEL + inventoryRecord.classPath()
-                                        + " | resolved=" + effectivePath
-                                        + " | reason=file_exists_but_no_history_linked"
-                        );
-                    }
-                }
-
-                final String normalizedClassPath = ClassPathNormalizer.normalize(inventoryRecord.classPath());
-                final String buggy = buggyClassesByVersion
-                        .getOrDefault(inventoryRecord.version(), Set.of())
-                        .contains(normalizedClassPath)
-                        ? "YES"
-                        : "NO";
-
-                outputRecords.add(new ReleaseMetricsRecord(
-                        inventoryRecord.version(),
-                        inventoryRecord.classPath(),
-                        staticMetrics.loc(),
-                        historyResult.metrics().locTouched(),
-                        historyResult.metrics().revs(),
-                        historyResult.metrics().fixes(),
-                        historyResult.metrics().auth(),
-                        historyResult.metrics().locAdded(),
-                        historyResult.metrics().maxLocAdded(),
-                        historyResult.metrics().avgLocAdded(),
-                        historyResult.metrics().churn(),
-                        historyResult.metrics().maxChurn(),
-                        historyResult.metrics().avgChurn(),
-                        historyResult.metrics().changeSetSize(),
-                        historyResult.metrics().maxChangeSet(),
-                        historyResult.metrics().avgChangeSet(),
-                        historyResult.metrics().age(),
-                        historyResult.metrics().weightedAge(),
-                        staticMetrics.commentLines(),
-                        "",
-                        0,
-                        staticMetrics.nestingDepth(),
-                        staticMetrics.decisionPoints(),
-                        buggy
-                ));
+                context.moveToVersion(inventoryRecord.version());
+                outputRecords.add(buildMetricsRecord(context, inventoryRecord));
             }
         }
 
         csvWriter.write(outputRecords);
         ApplicationLog.info("Generated metrics csv: " + outputCsvPath + " | rows=" + outputRecords.size());
+    }
+
+    private Map<String, Set<String>> prepareBuggyClassesByVersion(
+            final TemporaryGitRepository repository,
+            final List<InventoryRecord> inventoryRecords,
+            final Map<String, BugTicket> tickets
+    ) {
+        final Map<String, Set<String>> touchedClassesByTicket = buggyClassLabelResolver.resolveTouchedClassesByTicket(
+                repository,
+                tickets
+        );
+        final Map<String, Set<String>> buggyClassesByVersion = buildBuggyClassesByVersion(
+                inventoryRecords,
+                tickets,
+                touchedClassesByTicket
+        );
+        logBuggyLabelSummary(tickets, touchedClassesByTicket, buggyClassesByVersion);
+        return buggyClassesByVersion;
+    }
+
+    private ReleaseMetricsRecord buildMetricsRecord(
+            final ReleaseProcessingContext context,
+            final InventoryRecord inventoryRecord
+    ) {
+        final SourceLookupResult sourceLookup = sourceLocator.locate(
+                context.repository(),
+                context.currentTag(),
+                inventoryRecord.classPath()
+        );
+        final StaticMetrics staticMetrics = staticMetrics(sourceLookup);
+        final HistoryExtractionResult historyResult = historyMetricExtractor.extract(
+                context.repository(),
+                context.currentWindowStartTag(),
+                context.currentTag(),
+                context.currentReleaseDate(),
+                sourceLookup.resolvedPath(),
+                context.tickets()
+        );
+
+        logSourceLookup(inventoryRecord, sourceLookup);
+        logZeroHistoryIfNeeded(inventoryRecord, sourceLookup, historyResult);
+
+        return toReleaseMetricsRecord(
+                inventoryRecord,
+                staticMetrics,
+                historyResult.metrics(),
+                buggyLabel(context.buggyClassesByVersion(), inventoryRecord)
+        );
+    }
+
+    private StaticMetrics staticMetrics(final SourceLookupResult sourceLookup) {
+        if (!sourceLookup.found()) {
+            return StaticMetrics.empty();
+        }
+        return staticMetricExtractor.extract(sourceLookup.sourceCode());
+    }
+
+    private void logSourceLookup(
+            final InventoryRecord inventoryRecord,
+            final SourceLookupResult sourceLookup
+    ) {
+        if (!sourceLookup.found()) {
+            ApplicationLog.info(
+                    "[STATIC-SUSPECT] release=" + inventoryRecord.version()
+                            + PATH_LABEL + inventoryRecord.classPath()
+                            + " | reason=source_not_found_at_release_tag"
+            );
+        } else if (!sourceLookup.exactMatch()) {
+            ApplicationLog.info(
+                    "[PATH-RECOVERED] release=" + inventoryRecord.version()
+                            + " | requested=" + inventoryRecord.classPath()
+                            + " | resolved=" + sourceLookup.resolvedPath()
+            );
+        }
+    }
+
+    private void logZeroHistoryIfNeeded(
+            final InventoryRecord inventoryRecord,
+            final SourceLookupResult sourceLookup,
+            final HistoryExtractionResult historyResult
+    ) {
+        if (!isZeroHistory(historyResult.metrics())) {
+            return;
+        }
+        if (!historyResult.hasWindowCommits() && historyResult.hasCumulativeCommits()) {
+            ApplicationLog.info(
+                    "[ZERO-OK] release=" + inventoryRecord.version()
+                            + PATH_LABEL + inventoryRecord.classPath()
+                            + " | reason=no_commits_in_release_window"
+            );
+        } else if (!historyResult.hasWindowCommits() && !historyResult.hasCumulativeCommits() && sourceLookup.found()) {
+            ApplicationLog.info(
+                    "[ZERO-SUSPECT] release=" + inventoryRecord.version()
+                            + PATH_LABEL + inventoryRecord.classPath()
+                            + " | resolved=" + sourceLookup.resolvedPath()
+                            + " | reason=file_exists_but_no_history_linked"
+            );
+        }
+    }
+
+    private boolean isZeroHistory(final HistoryMetrics metrics) {
+        return metrics.revs() == 0
+                && metrics.auth() == 0
+                && metrics.locTouched() == 0
+                && metrics.locAdded() == 0
+                && metrics.churn() == 0;
+    }
+
+    private ReleaseMetricsRecord toReleaseMetricsRecord(
+            final InventoryRecord inventoryRecord,
+            final StaticMetrics staticMetrics,
+            final HistoryMetrics historyMetrics,
+            final String buggy
+    ) {
+        return new ReleaseMetricsRecord(
+                inventoryRecord.version(),
+                inventoryRecord.classPath(),
+                staticMetrics.loc(),
+                historyMetrics.locTouched(),
+                historyMetrics.revs(),
+                historyMetrics.fixes(),
+                historyMetrics.auth(),
+                historyMetrics.locAdded(),
+                historyMetrics.maxLocAdded(),
+                historyMetrics.avgLocAdded(),
+                historyMetrics.churn(),
+                historyMetrics.maxChurn(),
+                historyMetrics.avgChurn(),
+                historyMetrics.changeSetSize(),
+                historyMetrics.maxChangeSet(),
+                historyMetrics.avgChangeSet(),
+                historyMetrics.age(),
+                historyMetrics.weightedAge(),
+                staticMetrics.commentLines(),
+                "",
+                0,
+                staticMetrics.nestingDepth(),
+                staticMetrics.decisionPoints(),
+                buggy
+        );
+    }
+
+    private String buggyLabel(
+            final Map<String, Set<String>> buggyClassesByVersion,
+            final InventoryRecord inventoryRecord
+    ) {
+        final String normalizedClassPath = ClassPathNormalizer.normalize(inventoryRecord.classPath());
+        return buggyClassesByVersion
+                .getOrDefault(inventoryRecord.version(), Set.of())
+                .contains(normalizedClassPath)
+                ? YES
+                : NO;
     }
 
     private Map<String, Set<String>> buildBuggyClassesByVersion(
@@ -226,19 +257,34 @@ public final class ReleaseMetricsGenerationService {
 
         for (Map.Entry<String, Set<String>> entry : touchedClassesByTicket.entrySet()) {
             final BugTicket ticket = tickets.get(entry.getKey());
-            if (ticket == null || !ticket.hasInjectedVersion() || !ticket.hasFixedVersion()) {
-                continue;
-            }
-
-            for (String releaseVersion : releaseVersions) {
-                if (isWithinBuggyWindow(releaseVersion, ticket.injectedVersion(), ticket.fixedVersion())) {
-                    buggyClassesByVersion.get(releaseVersion).addAll(entry.getValue());
-                }
+            if (isUsableBugTicket(ticket)) {
+                addBuggyClassesForTicket(releaseVersions, buggyClassesByVersion, ticket, entry.getValue());
             }
         }
 
+        return immutableCopy(buggyClassesByVersion);
+    }
+
+    private boolean isUsableBugTicket(final BugTicket ticket) {
+        return ticket != null && ticket.hasInjectedVersion() && ticket.hasFixedVersion();
+    }
+
+    private void addBuggyClassesForTicket(
+            final Set<String> releaseVersions,
+            final Map<String, Set<String>> buggyClassesByVersion,
+            final BugTicket ticket,
+            final Set<String> touchedClasses
+    ) {
+        for (String releaseVersion : releaseVersions) {
+            if (isWithinBuggyWindow(releaseVersion, ticket.injectedVersion(), ticket.fixedVersion())) {
+                buggyClassesByVersion.get(releaseVersion).addAll(touchedClasses);
+            }
+        }
+    }
+
+    private Map<String, Set<String>> immutableCopy(final Map<String, Set<String>> source) {
         final Map<String, Set<String>> immutableMap = new LinkedHashMap<>();
-        for (Map.Entry<String, Set<String>> entry : buggyClassesByVersion.entrySet()) {
+        for (Map.Entry<String, Set<String>> entry : source.entrySet()) {
             immutableMap.put(entry.getKey(), Set.copyOf(entry.getValue()));
         }
         return Map.copyOf(immutableMap);
@@ -276,5 +322,84 @@ public final class ReleaseMetricsGenerationService {
                         + " | versionsWithBuggyClasses=" + buggyClassesByVersion.size()
                         + " | versionClassBindings=" + totalBuggyVersionClassBindings
         );
+    }
+
+    private final class ReleaseProcessingContext {
+
+        private final TemporaryGitRepository repository;
+        private final Map<String, BugTicket> tickets;
+        private final Map<String, Set<String>> buggyClassesByVersion;
+        private String currentVersion;
+        private String currentTag;
+        private String currentWindowStartTag;
+        private String lastResolvedTag;
+        private LocalDate currentReleaseDate;
+
+        private ReleaseProcessingContext(
+                final TemporaryGitRepository repository,
+                final Map<String, BugTicket> tickets,
+                final Map<String, Set<String>> buggyClassesByVersion
+        ) {
+            this.repository = repository;
+            this.tickets = tickets;
+            this.buggyClassesByVersion = buggyClassesByVersion;
+        }
+
+        void moveToVersion(final String version) {
+            if (!version.equals(currentVersion)) {
+                currentVersion = version;
+                currentWindowStartTag = lastResolvedTag;
+                currentTag = resolveTag(version);
+                currentReleaseDate = resolveReleaseDate(currentTag);
+                lastResolvedTag = currentTag;
+                logCurrentRelease();
+            }
+        }
+
+        private String resolveTag(final String version) {
+            return repository.resolveTag(version)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Unable to resolve git tag for version " + version
+                    ));
+        }
+
+        private LocalDate resolveReleaseDate(final String tag) {
+            return repository.resolveCommitDateForRef(tag)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Unable to resolve commit date for tag " + tag
+                    ));
+        }
+
+        private void logCurrentRelease() {
+            ApplicationLog.info(
+                    "Processing release " + currentVersion
+                            + " with tag " + currentTag
+                            + " | previousTag=" + currentWindowStartTag
+            );
+        }
+
+        TemporaryGitRepository repository() {
+            return repository;
+        }
+
+        Map<String, BugTicket> tickets() {
+            return tickets;
+        }
+
+        Map<String, Set<String>> buggyClassesByVersion() {
+            return buggyClassesByVersion;
+        }
+
+        String currentTag() {
+            return currentTag;
+        }
+
+        String currentWindowStartTag() {
+            return currentWindowStartTag;
+        }
+
+        LocalDate currentReleaseDate() {
+            return currentReleaseDate;
+        }
     }
 }

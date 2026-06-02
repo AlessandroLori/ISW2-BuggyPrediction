@@ -331,54 +331,73 @@ public final class SonarCloudCodeSmellClient {
 
     private Optional<JsonNode> getJson(String url, boolean logWarnings) {
         try {
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(30))
-                    .GET();
-
-            if (!configuration.token().isBlank()) {
-                requestBuilder.header("Authorization", "Bearer " + configuration.token());
-            }
-
             HttpResponse<String> response = httpClient.send(
-                    requestBuilder.build(),
+                    buildGetRequest(url),
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
             );
-
-            if (response.statusCode() != HTTP_OK) {
-                if (logWarnings) {
-                    logApiWarning("status=" + response.statusCode()
-                            + " | url=" + sanitizeUrl(url)
-                            + " | body=" + response.body());
-                }
-                return Optional.empty();
-            }
-
-            JsonNode jsonNode = objectMapper.readTree(response.body());
-            if (hasApiErrors(jsonNode)) {
-                if (logWarnings) {
-                    logApiWarning("errors=" + jsonNode.path("errors")
-                            + " | url=" + sanitizeUrl(url));
-                }
-                return Optional.empty();
-            }
-            return Optional.of(jsonNode);
+            return parseJsonResponse(url, response, logWarnings);
         } catch (IOException exception) {
-            if (logWarnings) {
-                logApiWarningForUrl(url, exception.getMessage());
-            }
+            logJsonRequestFailure(url, exception.getMessage(), logWarnings);
             return Optional.empty();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            if (logWarnings) {
-                logApiWarningForUrl(url, "interrupted");
-            }
+            logJsonRequestFailure(url, "interrupted", logWarnings);
             return Optional.empty();
         } catch (IllegalArgumentException exception) {
-            if (logWarnings) {
-                logApiWarningForUrl(url, exception.getMessage());
-            }
+            logJsonRequestFailure(url, exception.getMessage(), logWarnings);
             return Optional.empty();
+        }
+    }
+
+    private HttpRequest buildGetRequest(String url) {
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(30))
+                .GET();
+
+        if (!configuration.token().isBlank()) {
+            requestBuilder.header("Authorization", "Bearer " + configuration.token());
+        }
+
+        return requestBuilder.build();
+    }
+
+    private Optional<JsonNode> parseJsonResponse(
+            String url,
+            HttpResponse<String> response,
+            boolean logWarnings
+    ) throws IOException {
+        if (response.statusCode() != HTTP_OK) {
+            logUnexpectedStatus(url, response, logWarnings);
+            return Optional.empty();
+        }
+
+        JsonNode jsonNode = objectMapper.readTree(response.body());
+        if (hasApiErrors(jsonNode)) {
+            logApiErrors(url, jsonNode, logWarnings);
+            return Optional.empty();
+        }
+        return Optional.of(jsonNode);
+    }
+
+    private void logUnexpectedStatus(String url, HttpResponse<String> response, boolean logWarnings) {
+        if (logWarnings) {
+            logApiWarning("status=" + response.statusCode()
+                    + " | url=" + sanitizeUrl(url)
+                    + " | body=" + response.body());
+        }
+    }
+
+    private void logApiErrors(String url, JsonNode jsonNode, boolean logWarnings) {
+        if (logWarnings) {
+            logApiWarning("errors=" + jsonNode.path("errors")
+                    + " | url=" + sanitizeUrl(url));
+        }
+    }
+
+    private void logJsonRequestFailure(String url, String reason, boolean logWarnings) {
+        if (logWarnings) {
+            logApiWarningForUrl(url, reason);
         }
     }
 

@@ -216,39 +216,77 @@ public final class SmellDatasetGenerationService {
     ) {
         final List<SmellDatasetRecord> records = new ArrayList<>();
         final Set<String> seenClassPaths = new LinkedHashSet<>();
+        final SmellRowBuildContext context = new SmellRowBuildContext(
+                repository,
+                previousTag,
+                currentTag,
+                currentReleaseDate,
+                pmdMetricsByClassPath,
+                knownBugTickets
+        );
 
         for (ProductionJavaSource source : sources) {
-            final String classPath = normalizePath(source.classPath());
-            if (!seenClassPaths.add(classPath)) {
-                continue;
-            }
-
-            final PmdClassSmellMetrics pmdMetrics = pmdMetricsByClassPath.getOrDefault(
-                    classPath,
-                    PmdClassSmellMetrics.empty()
-            );
-
-            if (pmdMetrics.smellCount() <= 0) {
-                continue;
-            }
-
-            final StaticMetrics staticMetrics = lineMetricExtractor.extract(source.sourceCode());
-            final HistoryExtractionResult historyExtractionResult = historyMetricExtractor.extract(
-                    repository,
-                    previousTag,
-                    currentTag,
-                    currentReleaseDate,
-                    classPath,
-                    knownBugTickets
-            );
-            final HistoryMetrics historyMetrics = historyExtractionResult.metrics();
-
-            records.add(toRecord(classPath, staticMetrics, historyMetrics, pmdMetrics));
+            buildRowIfEligible(context, records, seenClassPaths, source);
         }
 
         return records.stream()
                 .sorted(Comparator.comparing(SmellDatasetRecord::classPath))
                 .toList();
+    }
+
+    private void buildRowIfEligible(
+            final SmellRowBuildContext context,
+            final List<SmellDatasetRecord> records,
+            final Set<String> seenClassPaths,
+            final ProductionJavaSource source
+    ) {
+        final String classPath = normalizePath(source.classPath());
+        if (seenClassPaths.add(classPath)) {
+            addSmellyRow(context, records, source, classPath);
+        }
+    }
+
+    private void addSmellyRow(
+            final SmellRowBuildContext context,
+            final List<SmellDatasetRecord> records,
+            final ProductionJavaSource source,
+            final String classPath
+    ) {
+        final PmdClassSmellMetrics pmdMetrics = context.pmdMetricsByClassPath().getOrDefault(
+                classPath,
+                PmdClassSmellMetrics.empty()
+        );
+        if (pmdMetrics.smellCount() > 0) {
+            records.add(buildRecordWithHistory(context, source, classPath, pmdMetrics));
+        }
+    }
+
+    private SmellDatasetRecord buildRecordWithHistory(
+            final SmellRowBuildContext context,
+            final ProductionJavaSource source,
+            final String classPath,
+            final PmdClassSmellMetrics pmdMetrics
+    ) {
+        final StaticMetrics staticMetrics = lineMetricExtractor.extract(source.sourceCode());
+        final HistoryExtractionResult historyExtractionResult = historyMetricExtractor.extract(
+                context.repository(),
+                context.previousTag(),
+                context.currentTag(),
+                context.currentReleaseDate(),
+                classPath,
+                context.knownBugTickets()
+        );
+        return toRecord(classPath, staticMetrics, historyExtractionResult.metrics(), pmdMetrics);
+    }
+
+    private record SmellRowBuildContext(
+            TemporaryGitRepository repository,
+            String previousTag,
+            String currentTag,
+            LocalDate currentReleaseDate,
+            Map<String, PmdClassSmellMetrics> pmdMetricsByClassPath,
+            Map<String, BugTicket> knownBugTickets
+    ) {
     }
 
     private SmellDatasetRecord toRecord(

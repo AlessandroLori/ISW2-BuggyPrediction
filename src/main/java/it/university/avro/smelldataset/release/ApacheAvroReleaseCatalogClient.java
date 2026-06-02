@@ -25,7 +25,7 @@ public final class ApacheAvroReleaseCatalogClient {
     );
 
     private static final Pattern RELEASE_DIRECTORY_PATTERN = Pattern.compile(
-            "href=\\\"avro-([0-9]+(?:\\.[0-9]+)+)/*\\\"",
+            "href=\\\"avro-(\\d+(?:\\.\\d+){1,5})/?\\\"",
             Pattern.CASE_INSENSITIVE
     );
 

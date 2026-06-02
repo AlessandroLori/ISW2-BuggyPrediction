@@ -67,42 +67,14 @@ public final class GitHubApiClient {
 
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
-                final HttpRequest request = baseRequest(apiPath).GET().build();
-                final HttpResponse<String> response = httpClient.send(
-                        request,
-                        HttpResponse.BodyHandlers.ofString()
-                );
-
-                final int statusCode = response.statusCode();
-                final String body = response.body();
-
-                if (statusCode == 404) {
-                    throw new GitHubNotFoundException("GitHub resource not found: " + apiPath);
-                }
-
-                if (statusCode == 403 && isRateLimitExceeded(body)) {
-                    throw new GitHubRateLimitException(RATE_LIMIT_MESSAGE);
-                }
-
-                if (isRetryableStatus(statusCode)) {
-                    lastFailure = new IllegalStateException(
-                            "GitHub API temporary failure. Status=" + statusCode
-                                    + " path=" + apiPath
-                                    + " attempt=" + attempt
-                    );
+                final HttpResponse<String> response = sendJsonRequest(apiPath);
+                final JsonResponseAction action = classifyJsonResponse(apiPath, response, attempt);
+                if (action.retry()) {
+                    lastFailure = action.failure();
                     sleepBeforeRetry(attempt);
-                    continue;
+                } else {
+                    return OBJECT_MAPPER.readTree(response.body());
                 }
-
-                if (statusCode < 200 || statusCode >= 300) {
-                    throw new IllegalStateException(
-                            "GitHub API call failed. Status=" + statusCode
-                                    + " path=" + apiPath
-                                    + " body=" + body
-                    );
-                }
-
-                return OBJECT_MAPPER.readTree(body);
             } catch (GitHubNotFoundException | GitHubRateLimitException exception) {
                 throw exception;
             } catch (IOException exception) {
@@ -124,6 +96,42 @@ public final class GitHubApiClient {
                 "GitHub API call failed after retries for " + apiPath,
                 lastFailure
         );
+    }
+
+    private HttpResponse<String> sendJsonRequest(final String apiPath) throws IOException, InterruptedException {
+        final HttpRequest request = baseRequest(apiPath).GET().build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private JsonResponseAction classifyJsonResponse(
+            final String apiPath,
+            final HttpResponse<String> response,
+            final int attempt
+    ) {
+        final int statusCode = response.statusCode();
+        final String body = response.body();
+
+        if (statusCode == 404) {
+            throw new GitHubNotFoundException("GitHub resource not found: " + apiPath);
+        }
+        if (statusCode == 403 && isRateLimitExceeded(body)) {
+            throw new GitHubRateLimitException(RATE_LIMIT_MESSAGE);
+        }
+        if (isRetryableStatus(statusCode)) {
+            return JsonResponseAction.retry(new IllegalStateException(
+                    "GitHub API temporary failure. Status=" + statusCode
+                            + " path=" + apiPath
+                            + " attempt=" + attempt
+            ));
+        }
+        if (statusCode < 200 || statusCode >= 300) {
+            throw new IllegalStateException(
+                    "GitHub API call failed. Status=" + statusCode
+                            + " path=" + apiPath
+                            + " body=" + body
+            );
+        }
+        return JsonResponseAction.success();
     }
 
     public Optional<String> getOptionalCommitShaForRef(final String ref) {
@@ -249,6 +257,17 @@ public final class GitHubApiClient {
         }
 
         return builder;
+    }
+
+
+    private record JsonResponseAction(boolean retry, RuntimeException failure) {
+        private static JsonResponseAction success() {
+            return new JsonResponseAction(false, null);
+        }
+
+        private static JsonResponseAction retry(final RuntimeException failure) {
+            return new JsonResponseAction(true, failure);
+        }
     }
 
     public static final class GitHubNotFoundException extends RuntimeException {

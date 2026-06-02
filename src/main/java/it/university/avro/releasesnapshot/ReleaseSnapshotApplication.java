@@ -12,6 +12,8 @@ import it.university.avro.releasesnapshot.scan.LogicalClassPathResolver;
 import it.university.avro.releasesnapshot.scan.ProductionJavaClassFilter;
 import it.university.avro.releasesnapshot.scan.ZipJavaFileScanner;
 import it.university.avro.releasesnapshot.service.ReleaseClassInventoryService;
+import it.university.avro.releasesnapshot.service.ReleaseClassInventoryService.ReleaseCatalogDependencies;
+import it.university.avro.releasesnapshot.service.ReleaseClassInventoryService.ReleaseSourceDependencies;
 import it.university.avro.releasesnapshot.service.ReleaseSelectionService;
 
 public final class ReleaseSnapshotApplication {
@@ -63,16 +65,24 @@ public final class ReleaseSnapshotApplication {
         final String repositoryUrl =
                 "https://github.com/" + configuration.owner() + "/" + configuration.repository() + ".git";
 
-        final ReleaseClassInventoryService service = new ReleaseClassInventoryService(
+        final ReleaseCatalogDependencies catalogDependencies = new ReleaseCatalogDependencies(
                 releaseCatalogReader,
                 releaseSelectionService,
                 gitHubTagResolver,
                 gitHubArchiveDownloader,
-                apacheSourceArchiveDownloader,
+                apacheSourceArchiveDownloader
+        );
+
+        final ReleaseSourceDependencies sourceDependencies = new ReleaseSourceDependencies(
                 zipJavaFileScanner,
                 javaDeclaredTypeExtractor,
                 productionJavaClassFilter,
-                csvWriter,
+                csvWriter
+        );
+
+        final ReleaseClassInventoryService service = new ReleaseClassInventoryService(
+                catalogDependencies,
+                sourceDependencies,
                 repositoryUrl
         );
 

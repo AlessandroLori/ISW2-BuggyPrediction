@@ -6,10 +6,14 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public enum SemanticVersionComparator implements Comparator<String> {
-    INSTANCE;
+public final class SemanticVersionComparator implements Comparator<String> {
+
+    public static final SemanticVersionComparator INSTANCE = new SemanticVersionComparator();
 
     private static final Pattern LEADING_NUMBER = Pattern.compile("^(\\d+)");
+
+    private SemanticVersionComparator() {
+    }
 
     @Override
     public int compare(final String firstVersion, final String secondVersion) {

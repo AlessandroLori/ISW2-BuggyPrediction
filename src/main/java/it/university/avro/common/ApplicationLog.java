@@ -43,11 +43,13 @@ public final class ApplicationLog {
     }
 
     public static void infof(final String format, final Object... args) {
-        LOGGER.info(String.format(Locale.ROOT, format, args));
+        infof(Locale.ROOT, format, args);
     }
 
     public static void infof(final Locale locale, final String format, final Object... args) {
-        LOGGER.info(String.format(locale, format, args));
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info(String.format(locale, format, args));
+        }
     }
 
     private static final class PlainConsoleFormatter extends Formatter {

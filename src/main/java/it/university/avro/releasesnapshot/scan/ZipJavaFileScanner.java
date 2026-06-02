@@ -8,13 +8,16 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.Map;
 
 public final class ZipJavaFileScanner {
 
@@ -37,13 +40,11 @@ public final class ZipJavaFileScanner {
 
     private List<JavaSourceUnit> scanZipArchive(final Path archivePath) {
         final List<JavaSourceUnit> javaSources = new ArrayList<>();
+        final URI zipUri = URI.create("jar:" + archivePath.toUri());
 
-        try (InputStream inputStream = java.nio.file.Files.newInputStream(archivePath);
-             ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
-
-            ZipEntry entry;
-            while ((entry = zipInputStream.getNextEntry()) != null) {
-                addJavaSourceFromZipEntry(entry, zipInputStream, javaSources);
+        try (FileSystem zipFileSystem = FileSystems.newFileSystem(zipUri, Map.of())) {
+            for (Path root : zipFileSystem.getRootDirectories()) {
+                addJavaSourcesFromZipRoot(root, javaSources);
             }
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to scan Java files in zip archive " + archivePath, exception);
@@ -52,15 +53,22 @@ public final class ZipJavaFileScanner {
         return List.copyOf(javaSources);
     }
 
-    private void addJavaSourceFromZipEntry(
-            final ZipEntry entry,
-            final ZipInputStream zipInputStream,
+    private void addJavaSourcesFromZipRoot(
+            final Path root,
             final List<JavaSourceUnit> javaSources
     ) throws IOException {
-        if (isReadableJavaEntry(entry.getName(), entry.isDirectory())) {
-            final String normalizedEntryPath = normalizeArchiveEntryPath(entry.getName());
-            final String sourceCode = new String(zipInputStream.readAllBytes(), StandardCharsets.UTF_8);
-            javaSources.add(new JavaSourceUnit(normalizedEntryPath, sourceCode));
+        try (var paths = Files.walk(root)) {
+            final List<Path> javaFiles = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> isReadableJavaEntry(root.relativize(path).toString(), false))
+                    .toList();
+
+            for (Path javaFile : javaFiles) {
+                final String archiveEntryPath = root.relativize(javaFile).toString();
+                final String normalizedEntryPath = normalizeArchiveEntryPath(archiveEntryPath);
+                final String sourceCode = Files.readString(javaFile, StandardCharsets.UTF_8);
+                javaSources.add(new JavaSourceUnit(normalizedEntryPath, sourceCode));
+            }
         }
     }
 

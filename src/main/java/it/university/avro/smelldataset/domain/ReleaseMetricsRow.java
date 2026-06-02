@@ -13,7 +13,7 @@ public record ReleaseMetricsRow(Map<String, String> valuesByHeader) {
         return valuesByHeader.getOrDefault(header, "");
     }
 
-    public LinkedHashMap<String, String> asOrderedMap(Iterable<String> headers) {
+    public Map<String, String> asOrderedMap(Iterable<String> headers) {
         LinkedHashMap<String, String> orderedValues = new LinkedHashMap<>();
 
         for (String header : headers) {
